@@ -25,7 +25,7 @@ param spokes = [
     vnetAddressPrefix: '10.1.0.0/16'
     sessionHostSubnetPrefix: '10.1.0.0/24'
     sessionHostCount: 2
-    sessionHostVmSize: 'Standard_D4s_v5'
+    sessionHostVmSize: 'Standard_D4s_v3'
     hostPoolType: 'Pooled' // マルチセッション
   }
   {
@@ -33,7 +33,7 @@ param spokes = [
     vnetAddressPrefix: '10.2.0.0/16'
     sessionHostSubnetPrefix: '10.2.0.0/24'
     sessionHostCount: 2
-    sessionHostVmSize: 'Standard_D4s_v5'
+    sessionHostVmSize: 'Standard_D4s_v3'
     hostPoolType: 'Pooled' // マルチセッション
   }
   {
@@ -41,7 +41,7 @@ param spokes = [
     vnetAddressPrefix: '10.3.0.0/16'
     sessionHostSubnetPrefix: '10.3.0.0/24'
     sessionHostCount: 2
-    sessionHostVmSize: 'Standard_D4s_v5'
+    sessionHostVmSize: 'Standard_D4s_v3'
     hostPoolType: 'Personal' // シングルセッション (1ユーザー1VM)
   }
 ]

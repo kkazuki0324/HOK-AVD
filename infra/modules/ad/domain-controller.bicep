@@ -12,7 +12,7 @@ param prefix string
 param subnetId string
 
 @description('VM のサイズ')
-param vmSize string = 'Standard_B2ms'
+param vmSize string = 'Standard_D2s_v3'
 
 @description('管理者ユーザー名')
 param adminUsername string
