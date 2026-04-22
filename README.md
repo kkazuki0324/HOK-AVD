@@ -5,71 +5,144 @@
 ## アーキテクチャ
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  Azure Subscription                                                        │
-│                                                                            │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────────────┐  │
-│  │  Hub VNet (10.0.0.0/16)     │  │  Spoke01 VNet (10.1.0.0/16)        │  │
-│  │                             │  │  ┌───────────────────────────────┐  │  │
-│  │  ┌───────────────────────┐  │  │  │ Session Hosts (10.1.0.0/24)  │  │  │
-│  │  │ Azure Firewall        │  │◄─┤  │ Host Pool + Workspace        │  │  │
-│  │  │ (10.0.1.0/26)         │  │  │  └───────────────────────────────┘  │  │
-│  │  └───────────────────────┘  │  └─────────────────────────────────────┘  │
-│  │                             │                                           │
-│  │  ┌───────────────────────┐  │  ┌─────────────────────────────────────┐  │
-│  │  │ AD Domain Controller  │  │  │  Spoke02 VNet (10.2.0.0/16)        │  │
-│  │  │ (10.0.2.0/24)         │  │  │  ┌───────────────────────────────┐  │  │
-│  │  └───────────────────────┘  │◄─┤  │ Session Hosts (10.2.0.0/24)  │  │  │
-│  │                             │  │  │ Host Pool + Workspace        │  │  │
-│  │  ┌───────────────────────┐  │  │  └───────────────────────────────┘  │  │
-│  │  │ Azure Bastion         │  │  └─────────────────────────────────────┘  │
-│  │  │ (10.0.3.0/26)         │  │                                           │
-│  │  └───────────────────────┘  │  ┌─────────────────────────────────────┐  │
-│  └─────────────────────────────┘  │  Spoke03 VNet (10.3.0.0/16)        │  │
-│          VNet Peering ⇔           │  ┌───────────────────────────────┐  │  │
-│                                ◄──┤  │ Session Hosts (10.3.0.0/24)  │  │  │
-│                                   │  │ Host Pool + Workspace        │  │  │
-│  ┌─────────────────────────────┐  │  └───────────────────────────────┘  │  │
-│  │  Log Analytics (監視・診断)  │  └─────────────────────────────────────┘  │
-│  └─────────────────────────────┘                                           │
-│     全 Spoke の通信は Azure Firewall 経由 (UDR)                             │
-│     各 Spoke に専用の Host Pool / Application Group / Workspace            │
-└────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Azure Subscription                                                         │
+│                                                                             │
+│  ┌──────────────────────────────┐  ┌──────────────────────────────────────┐ │
+│  │  Hub VNet (10.0.0.0/16)      │  │ Spoke01 VNet (10.1.0.0/16) [Pooled] │ │
+│  │                              │  │ ┌────────────────────────────────┐   │ │
+│  │  ┌────────────────────────┐  │  │ │ Session Hosts (マルチセッション)│   │ │
+│  │  │ Azure Firewall         │  │◄─┤ │ Host Pool + FSLogix Storage   │   │ │
+│  │  │ (10.0.1.0/26)          │  │  │ └────────────────────────────────┘   │ │
+│  │  └────────────────────────┘  │  └──────────────────────────────────────┘ │
+│  │                              │                                           │
+│  │  ┌────────────────────────┐  │  ┌──────────────────────────────────────┐ │
+│  │  │ AD Domain Controller   │  │  │ Spoke02 VNet (10.2.0.0/16) [Pooled] │ │
+│  │  │ (10.0.2.0/24)          │  │  │ ┌────────────────────────────────┐   │ │
+│  │  └────────────────────────┘  │◄─┤ │ Session Hosts (マルチセッション)│   │ │
+│  │                              │  │ │ Host Pool + FSLogix Storage   │   │ │
+│  │  ┌────────────────────────┐  │  │ └────────────────────────────────┘   │ │
+│  │  │ Azure Bastion          │  │  └──────────────────────────────────────┘ │
+│  │  │ (10.0.3.0/26)          │  │                                           │
+│  │  └────────────────────────┘  │  ┌────────────────────────────────────────┐│
+│  └──────────────────────────────┘  │ Spoke03 VNet (10.3.0.0/16) [Personal] ││
+│          VNet Peering ⇔            │ ┌────────────────────────────────┐     ││
+│                                 ◄──┤ │ Session Hosts (シングルセッション)│     ││
+│                                    │ │ Host Pool + FSLogix Storage   │     ││
+│  ┌──────────────────────────────┐  │ └────────────────────────────────┘     ││
+│  │  監視基盤                     │  └────────────────────────────────────────┘│
+│  │  Log Analytics + DCR          │                                           │
+│  │  AVD Insights Workbook        │                                           │
+│  │  Azure Monitor Agent (AMA)    │                                           │
+│  │  アラートルール (4種)          │                                           │
+│  └──────────────────────────────┘                                            │
+│     全 Spoke の通信は Azure Firewall 経由 (UDR)                              │
+│     プロファイルは FSLogix で Azure Files に外出し                            │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 主な構成要素
 
-| コンポーネント                 | 説明                                                          |
-| ------------------------------ | ------------------------------------------------------------- |
-| **Hub VNet**                   | Azure Firewall, AD DC, Bastion を配置する中央ネットワーク     |
-| **Azure Firewall**             | 全 Spoke の AVD 必須 FQDN / ネットワークルール、M365 通信許可 |
-| **AD Domain Controller**       | Windows Server 2022, AD DS を自動プロモーション               |
-| **Azure Bastion**              | 管理用の安全な RDP アクセス                                   |
-| **Spoke VNets (複数)**         | 各 Spoke に Session Host + Host Pool、UDR で Firewall 経由    |
-| **AVD Host Pool (Spoke ごと)** | Pooled / BreadthFirst、StartVMOnConnect 有効                  |
-| **Session Hosts**              | Windows 11 Enterprise Multi-session + M365 Apps               |
-| **Log Analytics**              | Firewall / 全 Host Pool / Workspace の診断ログ                |
+| コンポーネント                             | 説明                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| **Hub VNet**                               | Azure Firewall, AD DC, Bastion を配置する中央ネットワーク                                   |
+| **Azure Firewall**                         | 全 Spoke の AVD 必須 FQDN / ネットワークルール、M365 通信許可                               |
+| **AD Domain Controller**                   | Windows Server 2022, AD DS を自動プロモーション                                             |
+| **Azure Bastion**                          | 管理用の安全な RDP アクセス                                                                 |
+| **Spoke VNets (複数)**                     | 各 Spoke に Session Host + Host Pool、UDR で Firewall 経由                                  |
+| **AVD Host Pool - Pooled (マルチセッション)** | BreadthFirst / 複数ユーザー共有、Win11 Multi-session + M365 Apps                          |
+| **AVD Host Pool - Personal (シングルセッション)** | 1ユーザー1VM 専用割り当て、Win11 Enterprise                                           |
+| **FSLogix Profile Container**              | Azure Files Premium + プライベートエンドポイント、プロファイル外出し                        |
+| **AVD Insights 監視基盤**                  | DCR + AMA + Workbook + アラート (Session Host障害, 入力遅延, FSLogix, 接続エラー)           |
+| **Log Analytics**                          | Firewall / Host Pool / Workspace の診断ログ + パフォーマンスカウンター + イベントログ       |
 
 ## フォルダ構成
 
 ```
 infra/
-├── main.bicep                          # メインオーケストレーション (subscription scope)
-├── main.bicepparam                     # パラメータファイル
+├── main.bicep                                # メインオーケストレーション (subscription scope)
+├── main.bicepparam                           # パラメータファイル
 └── modules/
     ├── ad/
-    │   └── domain-controller.bicep     # AD DC VM + AD DS インストール
+    │   └── domain-controller.bicep           # AD DC VM + AD DS インストール
     ├── avd/
-    │   ├── host-pool.bicep             # Host Pool, App Group, Workspace
-    │   └── session-host.bicep          # Session Host VM + ドメイン参加 + AVD Agent
+    │   ├── host-pool.bicep                   # Host Pool (Pooled/Personal), App Group, Workspace
+    │   └── session-host.bicep                # Session Host VM + ドメイン参加 + AVD Agent + FSLogix + AMA
     ├── monitoring/
-    │   └── log-analytics.bicep         # Log Analytics Workspace
-    └── network/
-        ├── hub-vnet.bicep              # Hub VNet + Bastion
-        ├── spoke-vnet.bicep            # Spoke VNet + NSG + UDR + Peering
-        ├── hub-to-spoke-peering.bicep  # Hub → Spoke Peering
-        └── firewall.bicep              # Azure Firewall + Policy + AVD ルール
+    │   ├── log-analytics.bicep               # Log Analytics + DCR + Workbook + アラート
+    │   └── avd-insights-workbook.json        # AVD Insights Workbook テンプレート
+    ├── network/
+    │   ├── hub-vnet.bicep                    # Hub VNet + Bastion
+    │   ├── spoke-vnet.bicep                  # Spoke VNet + NSG + UDR + Peering
+    │   ├── hub-to-spoke-peering.bicep        # Hub → Spoke Peering
+    │   └── firewall.bicep                    # Azure Firewall + Policy + AVD ルール
+    └── storage/
+        └── fslogix-storage.bicep             # Azure Files Premium + PE + Private DNS
 ```
+
+## 監視について
+
+AVD の監視は「難しい」と言われがちですが、本環境では **AVD Insights** をベースに包括的な監視を自動構成しています。
+
+### 収集データ
+
+| カテゴリ               | 内容                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| **パフォーマンスカウンター** | CPU, メモリ, ディスク, ネットワーク, ターミナルサービス, ユーザー入力遅延, RemoteFX, FSLogix |
+| **イベントログ**       | System/Application (エラー・警告), FSLogix, RDS, ユーザープロファイル, GroupPolicy     |
+| **AVD 診断ログ**       | WVDConnections, WVDAgentHealthStatus (Host Pool / Workspace 診断設定)                |
+| **Firewall ログ**      | Network / Application ルール ヒット                                                  |
+
+### アラートルール
+
+| アラート名                        | 重大度 | トリガー条件                             |
+| --------------------------------- | ------ | ---------------------------------------- |
+| **Session Host 利用不可**         | Sev 1  | Session Host が Available 以外の状態     |
+| **ユーザー入力遅延 高**           | Sev 2  | 平均入力遅延 > 2000ms                    |
+| **FSLogix プロファイルロード遅延** | Sev 2  | 平均ロード時間 > 30秒                    |
+| **AVD 接続エラー**                | Sev 1  | 接続が Failed 状態                       |
+
+### AVD Insights Workbook
+
+自動デプロイされる Workbook で以下を可視化:
+- 接続サマリー・トレンド・失敗一覧
+- Session Host ヘルス状態一覧
+- CPU/メモリ/ディスク パフォーマンストレンド
+- ユーザー入力遅延 (AVD UX の最重要指標)
+- ネットワーク RTT
+- FSLogix プロファイルロード時間・エラー
+- セッション統計
+
+## FSLogix Profile Container
+
+各 Spoke に **Azure Files Premium** ストレージを自動作成し、FSLogix Profile Container でユーザープロファイルを外出しにしています。
+
+### 構成
+
+- **ストレージ**: FileStorage (Premium_LRS)、100GB クォータ (変更可能)
+- **アクセス**: プライベートエンドポイント + Private DNS Zone (パブリックアクセス無効)
+- **認証**: AD DS 認証 (Kerberos)
+- **FSLogix 設定** (Session Host に自動適用):
+  - プロファイルコンテナ: 有効
+  - VHD形式: VHDX
+  - 最大サイズ: 30GB
+  - FlipFlopProfileDirectoryName: 有効
+  - DeleteLocalProfileWhenVHDShouldApply: 有効
+
+### デプロイ後の手順 (FSLogix)
+
+1. **ストレージアカウントの AD DS 参加** - `Join-AzStorageAccount` コマンドで AD にコンピューターオブジェクトとして参加
+2. **NTFS アクセス許可設定** - ファイル共有をマウントし、ユーザーに適切な NTFS 権限を付与
+3. **動作確認** - ユーザーでログインし、`C:\Users\<user>\` 配下に VHDX が作成されることを確認
+
+## マルチセッション / シングルセッション
+
+| タイプ                      | イメージ                                    | ホストプール | ユースケース                      |
+| --------------------------- | ------------------------------------------- | ------------ | --------------------------------- |
+| **マルチセッション (Pooled)** | Win11 Enterprise Multi-session + M365 Apps | BreadthFirst | コスト効率重視、一般ユーザー向け  |
+| **シングルセッション (Personal)** | Win11 Enterprise                        | Persistent   | パフォーマンス重視、開発者向け    |
+
+`spokes` パラメータの `hostPoolType` で Spoke ごとに指定できます。
 
 ## 前提条件
 
@@ -79,6 +152,8 @@ infra/
   - `Microsoft.DesktopVirtualization`
   - `Microsoft.Compute`
   - `Microsoft.Network`
+  - `Microsoft.Insights`
+  - `Microsoft.Storage`
 - 十分なクォータ (VM, Public IP, Firewall 等)
 
 ## デプロイ手順
@@ -91,6 +166,8 @@ az provider register --namespace Microsoft.Compute
 az provider register --namespace Microsoft.Network
 az provider register --namespace Microsoft.OperationalInsights
 az provider register --namespace Microsoft.OperationsManagement
+az provider register --namespace Microsoft.Insights
+az provider register --namespace Microsoft.Storage
 ```
 
 ### 2. デプロイの実行
@@ -121,7 +198,8 @@ az deployment sub what-if \
     adminPassword='<パスワード>' \
     domainJoinUsername='azureadmin@hok.local' \
     domainJoinPassword='<パスワード>' \
-    tokenExpirationTime='2026-04-23T12:00:00Z'
+    tokenExpirationTime='2026-04-23T12:00:00Z' \
+    alertEmailAddress='admin@example.com'
 
 # デプロイ
 az deployment sub create \
@@ -133,25 +211,31 @@ az deployment sub create \
     adminPassword='<パスワード>' \
     domainJoinUsername='azureadmin@hok.local' \
     domainJoinPassword='<パスワード>' \
-    tokenExpirationTime='2026-04-23T12:00:00Z'
+    tokenExpirationTime='2026-04-23T12:00:00Z' \
+    alertEmailAddress='admin@example.com'
 ```
 
 ### 3. デプロイ後の手順
 
 1. **AD DC 再起動待ち** - AD DS インストール後、DC が自動再起動します (5-10分)
 2. **ドメインユーザー作成** - Bastion 経由で DC にログインし、AVD 用ユーザーを作成
-3. **Application Group へのユーザー割り当て** - Azure Portal > AVD > 各 Spoke の Application Group から割り当て
-4. **接続テスト** - [Windows デスクトップクライアント](https://aka.ms/avdclient) または [Web クライアント](https://client.wvd.microsoft.com/arm/webclient/index.html) で接続
+3. **ストレージアカウントの AD 参加** - `Join-AzStorageAccount` で FSLogix ストレージを AD に参加
+4. **NTFS 権限設定** - ファイル共有をマウントし、ユーザーごとの NTFS アクセス許可を設定
+5. **Application Group へのユーザー割り当て** - Azure Portal > AVD > 各 Spoke の Application Group から割り当て
+6. **接続テスト** - [Windows デスクトップクライアント](https://aka.ms/avdclient) または [Web クライアント](https://client.wvd.microsoft.com/arm/webclient/index.html) で接続
+7. **監視確認** - Azure Portal > Log Analytics Workspace > AVD Insights Workbook でダッシュボードを確認
 
 ## カスタマイズ
 
 ### 基本パラメータ
 
-| パラメータ   | デフォルト値 | 説明                     |
-| ------------ | ------------ | ------------------------ |
-| `location`   | `japaneast`  | デプロイ先リージョン     |
-| `prefix`     | `hok-avd`    | リソース名プレフィックス |
-| `domainName` | `hok.local`  | AD ドメイン名            |
+| パラメータ              | デフォルト値 | 説明                                          |
+| ----------------------- | ------------ | --------------------------------------------- |
+| `location`              | `japaneast`  | デプロイ先リージョン                          |
+| `prefix`                | `hok-avd`    | リソース名プレフィックス                      |
+| `domainName`            | `hok.local`  | AD ドメイン名                                 |
+| `fslogixShareQuotaGB`   | `100`        | FSLogix プロファイル共有のクォータ (GB)       |
+| `alertEmailAddress`     | (空)         | アラート通知先メールアドレス                  |
 
 ### Spoke 定義 (`spokes` パラメータ)
 
@@ -165,8 +249,8 @@ param spokes = [
     sessionHostSubnetPrefix: '10.1.0.0/24'  // Session Host サブネット
     sessionHostCount: 2                      // Session Host 台数
     sessionHostVmSize: 'Standard_D4s_v5'    // VM サイズ
+    hostPoolType: 'Pooled'                   // 'Pooled' (マルチ) or 'Personal' (シングル)
   }
-  // Spoke を追加するにはここにオブジェクトを追加
 ]
 ```
 
@@ -178,7 +262,10 @@ param spokes = [
 - AD DC は Hub VNet 内に隔離、NSG で必要ポートのみ許可
 - 各 Spoke の Session Host は NSG で VNet 内通信のみ許可
 - 管理アクセスは Azure Bastion 経由 (パブリック IP なし)
+- FSLogix ストレージはプライベートエンドポイント経由のみアクセス可能
+- ストレージアカウントの公開アクセスは無効
 - Boot Diagnostics 有効、Log Analytics による一元監視
+- Azure Monitor Agent で全 Session Host からメトリクス・ログ収集
 
 ## コスト目安 (3 Spoke 構成)
 
@@ -188,6 +275,8 @@ param spokes = [
 - Session Host VM (D4s_v5 x 2 x 3 Spoke): 約 ¥240,000/月
 - AD DC VM (B2ms x 1): 約 ¥10,000/月
 - Azure Bastion (Standard): 約 ¥20,000/月
+- Azure Files Premium (100GB x 3 Spoke): 約 ¥5,000/月
+- Log Analytics (データ量に依存): 約 ¥5,000-15,000/月
 
-> 合計約 ¥420,000/月程度 (リージョン・為替により変動)
+> 合計約 ¥430,000-¥440,000/月程度 (リージョン・為替により変動)
 > デモ利用時は使い終わったら VM を停止してコストを削減してください。

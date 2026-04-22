@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "15473928137575496733"
+      "templateHash": "13128166483042533665"
     }
   },
   "parameters": {
@@ -69,31 +69,48 @@
           "vnetAddressPrefix": "10.1.0.0/16",
           "sessionHostSubnetPrefix": "10.1.0.0/24",
           "sessionHostCount": 2,
-          "sessionHostVmSize": "Standard_D4s_v5"
+          "sessionHostVmSize": "Standard_D4s_v5",
+          "hostPoolType": "Pooled"
         },
         {
           "name": "spoke02",
           "vnetAddressPrefix": "10.2.0.0/16",
           "sessionHostSubnetPrefix": "10.2.0.0/24",
           "sessionHostCount": 2,
-          "sessionHostVmSize": "Standard_D4s_v5"
+          "sessionHostVmSize": "Standard_D4s_v5",
+          "hostPoolType": "Pooled"
         },
         {
           "name": "spoke03",
           "vnetAddressPrefix": "10.3.0.0/16",
           "sessionHostSubnetPrefix": "10.3.0.0/24",
           "sessionHostCount": 2,
-          "sessionHostVmSize": "Standard_D4s_v5"
+          "sessionHostVmSize": "Standard_D4s_v5",
+          "hostPoolType": "Personal"
         }
       ],
       "metadata": {
-        "description": "Spoke 定義の配列"
+        "description": "Spoke 定義の配列 (hostPoolType: Pooled=マルチセッション / Personal=シングルセッション)"
       }
     },
     "tokenExpirationTime": {
       "type": "string",
       "metadata": {
         "description": "ホストプール登録トークンの有効期限 (ISO 8601)"
+      }
+    },
+    "fslogixShareQuotaGB": {
+      "type": "int",
+      "defaultValue": 100,
+      "metadata": {
+        "description": "FSLogix プロファイル共有のクォータ (GB)"
+      }
+    },
+    "alertEmailAddress": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "アラート通知先メールアドレス (空の場合はアラートアクションなし)"
       }
     },
     "tags": {
@@ -133,6 +150,9 @@
           "prefix": {
             "value": "[parameters('prefix')]"
           },
+          "alertEmailAddress": {
+            "value": "[parameters('alertEmailAddress')]"
+          },
           "tags": {
             "value": "[parameters('tags')]"
           }
@@ -144,7 +164,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "7264730004744502603"
+              "templateHash": "4723515879988758068"
             }
           },
           "parameters": {
@@ -167,6 +187,13 @@
                 "description": "データ保持期間 (日)"
               }
             },
+            "alertEmailAddress": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "アラート通知先メールアドレス (空の場合アラートアクションなし)"
+              }
+            },
             "tags": {
               "type": "object",
               "defaultValue": {},
@@ -174,6 +201,9 @@
                 "description": "タグ"
               }
             }
+          },
+          "variables": {
+            "$fxv#0": "{\r\n  \"version\": \"Notebook/1.0\",\r\n  \"items\": [\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"# AVD Insights ダッシュボード\\nAzure Virtual Desktop の監視・分析用ダッシュボードです。\"\r\n      },\r\n      \"name\": \"header\"\r\n    },\r\n    {\r\n      \"type\": 9,\r\n      \"content\": {\r\n        \"version\": \"KqlParameterItem/1.0\",\r\n        \"parameters\": [\r\n          {\r\n            \"id\": \"timerange\",\r\n            \"version\": \"KqlParameterItem/1.0\",\r\n            \"name\": \"TimeRange\",\r\n            \"type\": 4,\r\n            \"isRequired\": true,\r\n            \"value\": { \"durationMs\": 86400000 },\r\n            \"typeSettings\": {\r\n              \"selectableValues\": [\r\n                { \"durationMs\": 3600000 },\r\n                { \"durationMs\": 14400000 },\r\n                { \"durationMs\": 43200000 },\r\n                { \"durationMs\": 86400000 },\r\n                { \"durationMs\": 259200000 },\r\n                { \"durationMs\": 604800000 }\r\n              ]\r\n            }\r\n          }\r\n        ]\r\n      },\r\n      \"name\": \"parameters\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"## 📊 接続状況\"\r\n      },\r\n      \"name\": \"section-connections\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"WVDConnections\\n| where TimeGenerated {TimeRange}\\n| summarize TotalConnections = count(), SuccessfulConnections = countif(State == 'Connected'), FailedConnections = countif(State == 'Failed')\\n| extend SuccessRate = round(todouble(SuccessfulConnections) / todouble(TotalConnections) * 100, 2)\",\r\n        \"size\": 4,\r\n        \"title\": \"接続サマリー\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"tiles\",\r\n        \"tileSettings\": {\r\n          \"titleContent\": { \"columnMatch\": \"Column1\" },\r\n          \"leftContent\": { \"columnMatch\": \"Column2\", \"formatter\": 12 }\r\n        }\r\n      },\r\n      \"name\": \"connection-summary\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"WVDConnections\\n| where TimeGenerated {TimeRange}\\n| summarize Count = count() by bin(TimeGenerated, 1h), State\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"接続トレンド (時間別)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"timechart\"\r\n      },\r\n      \"name\": \"connection-trend\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"WVDConnections\\n| where TimeGenerated {TimeRange}\\n| where State == 'Failed'\\n| summarize FailureCount = count() by CorrelationId, UserName, SessionHostName\\n| sort by FailureCount desc\\n| take 20\",\r\n        \"size\": 0,\r\n        \"title\": \"接続失敗一覧 (Top 20)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"connection-failures\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"## 🖥️ Session Host ヘルス\"\r\n      },\r\n      \"name\": \"section-health\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"WVDAgentHealthStatus\\n| where TimeGenerated {TimeRange}\\n| summarize arg_max(TimeGenerated, *) by SessionHostName\\n| summarize Available = countif(Status == 'Available'), Unavailable = countif(Status == 'Unavailable'), NeedsAssistance = countif(Status == 'NeedsAssistance'), Shutdown = countif(Status == 'Shutdown')\",\r\n        \"size\": 4,\r\n        \"title\": \"Session Host ステータス\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"tiles\"\r\n      },\r\n      \"name\": \"session-host-status\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"WVDAgentHealthStatus\\n| where TimeGenerated {TimeRange}\\n| summarize arg_max(TimeGenerated, *) by SessionHostName\\n| project SessionHostName, Status, LastHeartBeat, ActiveSessions, AllowNewSessions, AgentVersion, OSVersion\\n| sort by Status asc\",\r\n        \"size\": 0,\r\n        \"title\": \"Session Host 一覧\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"session-host-list\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"## ⚡ パフォーマンス\"\r\n      },\r\n      \"name\": \"section-performance\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'User Input Delay per Session' and CounterName == 'Max Input Delay'\\n| summarize AvgDelay = avg(CounterValue), MaxDelay = max(CounterValue), P95Delay = percentile(CounterValue, 95) by Computer\\n| sort by AvgDelay desc\",\r\n        \"size\": 0,\r\n        \"title\": \"ユーザー入力遅延 (ms) - Session Host 別\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"input-delay\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'User Input Delay per Session' and CounterName == 'Max Input Delay'\\n| summarize AvgDelay = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"ユーザー入力遅延トレンド\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"timechart\"\r\n      },\r\n      \"name\": \"input-delay-trend\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'Processor Information' and CounterName == '% Processor Time' and InstanceName == '_Total'\\n| summarize AvgCPU = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"CPU 使用率トレンド\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"timechart\"\r\n      },\r\n      \"name\": \"cpu-trend\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'Memory' and CounterName == 'Available Mbytes'\\n| summarize AvgMem = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"メモリ空き容量トレンド (MB)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"timechart\"\r\n      },\r\n      \"name\": \"memory-trend\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'RemoteFX Network' and CounterName == 'Current TCP RTT'\\n| summarize AvgRTT = avg(CounterValue), P95RTT = percentile(CounterValue, 95) by Computer\\n| sort by AvgRTT desc\",\r\n        \"size\": 0,\r\n        \"title\": \"ネットワーク RTT (ms)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"network-rtt\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"## 📁 FSLogix プロファイル\"\r\n      },\r\n      \"name\": \"section-fslogix\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'FSLogix Apps' and CounterName == 'Profile Load Time (ms)'\\n| summarize AvgLoadTime = avg(CounterValue), MaxLoadTime = max(CounterValue), P95LoadTime = percentile(CounterValue, 95) by Computer\\n| sort by AvgLoadTime desc\",\r\n        \"size\": 0,\r\n        \"title\": \"FSLogix プロファイルロード時間 (ms)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"fslogix-load-time\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Event\\n| where TimeGenerated {TimeRange}\\n| where Source == 'Microsoft-FSLogix-Apps'\\n| where EventLevelName in ('Error', 'Warning')\\n| summarize Count = count() by EventLevelName, EventID, RenderedDescription\\n| sort by Count desc\\n| take 20\",\r\n        \"size\": 0,\r\n        \"title\": \"FSLogix エラー・警告 (Top 20)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"fslogix-errors\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"## 📈 セッション統計\"\r\n      },\r\n      \"name\": \"section-sessions\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"Perf\\n| where TimeGenerated {TimeRange}\\n| where ObjectName == 'Terminal Services'\\n| where CounterName in ('Active Sessions', 'Inactive Sessions', 'Total Sessions')\\n| summarize Value = avg(CounterValue) by bin(TimeGenerated, 15m), CounterName\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"セッション数トレンド\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"timechart\"\r\n      },\r\n      \"name\": \"session-trend\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"WVDConnections\\n| where TimeGenerated {TimeRange}\\n| where State == 'Connected'\\n| summarize SessionDuration = avg(datetime_diff('minute', EndTime, StartTime)) by UserName\\n| sort by SessionDuration desc\\n| take 20\",\r\n        \"size\": 0,\r\n        \"title\": \"ユーザー別平均セッション時間 (分)\",\r\n        \"queryType\": 0,\r\n        \"visualization\": \"table\"\r\n      },\r\n      \"name\": \"session-duration\"\r\n    }\r\n  ],\r\n  \"fallbackResourceIds\": [],\r\n  \"styleSettings\": {},\r\n  \"$schema\": \"https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json\"\r\n}\r\n"
           },
           "resources": [
             {
@@ -195,19 +225,268 @@
               }
             },
             {
-              "type": "Microsoft.OperationsManagement/solutions",
-              "apiVersion": "2015-11-01-preview",
-              "name": "[format('WindowsEventForwarding({0})', format('{0}-law', parameters('prefix')))]",
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2023-03-11",
+              "name": "[format('{0}-dcr-avd-insights', parameters('prefix'))]",
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]",
-              "plan": {
-                "name": "[format('WindowsEventForwarding({0})', format('{0}-law', parameters('prefix')))]",
-                "publisher": "Microsoft",
-                "product": "OMSGallery/WindowsEventForwarding",
-                "promotionCode": ""
-              },
               "properties": {
-                "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+                "description": "AVD Insights 用 DCR - パフォーマンスカウンター + イベントログ",
+                "dataSources": {
+                  "performanceCounters": [
+                    {
+                      "name": "avdPerformanceCounters",
+                      "streams": [
+                        "Microsoft-Perf"
+                      ],
+                      "samplingFrequencyInSeconds": 30,
+                      "counterSpecifiers": [
+                        "\\Processor Information(_Total)\\% Processor Time",
+                        "\\Memory\\Available Mbytes",
+                        "\\Memory\\Page Faults/sec",
+                        "\\LogicalDisk(C:)\\% Free Space",
+                        "\\LogicalDisk(C:)\\Avg. Disk Queue Length",
+                        "\\LogicalDisk(C:)\\Avg. Disk sec/Transfer",
+                        "\\LogicalDisk(C:)\\Current Disk Queue Length",
+                        "\\PhysicalDisk(_Total)\\Avg. Disk Queue Length",
+                        "\\PhysicalDisk(_Total)\\Avg. Disk sec/Read",
+                        "\\PhysicalDisk(_Total)\\Avg. Disk sec/Write",
+                        "\\Network Interface(*)\\Bytes Total/sec",
+                        "\\Terminal Services\\Active Sessions",
+                        "\\Terminal Services\\Inactive Sessions",
+                        "\\Terminal Services\\Total Sessions",
+                        "\\User Input Delay per Process(*)\\Max Input Delay",
+                        "\\User Input Delay per Session(*)\\Max Input Delay",
+                        "\\RemoteFX Graphics(*)\\Average Encoding Time",
+                        "\\RemoteFX Graphics(*)\\Frames Skipped/Second - Insufficient Network Resources",
+                        "\\RemoteFX Graphics(*)\\Frames Skipped/Second - Insufficient Server Resources",
+                        "\\RemoteFX Network(*)\\Current TCP RTT",
+                        "\\RemoteFX Network(*)\\Current UDP Bandwidth",
+                        "\\FSLogix Apps(*)\\Profile Load Time (ms)"
+                      ]
+                    }
+                  ],
+                  "windowsEventLogs": [
+                    {
+                      "name": "avdEventLogs",
+                      "streams": [
+                        "Microsoft-Event"
+                      ],
+                      "xPathQueries": [
+                        "System!*[System[(Level=1 or Level=2 or Level=3)]]",
+                        "Application!*[System[(Level=1 or Level=2 or Level=3)]]",
+                        "Microsoft-FSLogix-Apps/Operational!*[System[(Level=1 or Level=2 or Level=3 or Level=4)]]",
+                        "Microsoft-FSLogix-Apps/Admin!*[System[(Level=1 or Level=2 or Level=3 or Level=4)]]",
+                        "Microsoft-Windows-TerminalServices-LocalSessionManager/Operational!*[System[(Level=1 or Level=2 or Level=3 or Level=4)]]",
+                        "Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational!*[System[(Level=1 or Level=2 or Level=3 or Level=4)]]",
+                        "Microsoft-Windows-User Profile Service/Operational!*[System[(Level=1 or Level=2 or Level=3 or Level=4)]]",
+                        "Microsoft-Windows-GroupPolicy/Operational!*[System[(Level=1 or Level=2 or Level=3)]]"
+                      ]
+                    }
+                  ]
+                },
+                "destinations": {
+                  "logAnalytics": [
+                    {
+                      "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]",
+                      "name": "la-destination"
+                    }
+                  ]
+                },
+                "dataFlows": [
+                  {
+                    "streams": [
+                      "Microsoft-Perf"
+                    ],
+                    "destinations": [
+                      "la-destination"
+                    ]
+                  },
+                  {
+                    "streams": [
+                      "Microsoft-Event"
+                    ],
+                    "destinations": [
+                      "la-destination"
+                    ]
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              ]
+            },
+            {
+              "condition": "[not(empty(parameters('alertEmailAddress')))]",
+              "type": "Microsoft.Insights/actionGroups",
+              "apiVersion": "2023-09-01-preview",
+              "name": "[format('{0}-ag-avd', parameters('prefix'))]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "groupShortName": "AVDAlerts",
+                "enabled": true,
+                "emailReceivers": [
+                  {
+                    "name": "AVD-Admin",
+                    "emailAddress": "[parameters('alertEmailAddress')]",
+                    "useCommonAlertSchema": true
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('{0}-alert-sh-unavailable', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "AVD Session Host 利用不可",
+                "description": "Session Host が Available 以外の状態になった場合にアラート",
+                "severity": 1,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "scopes": [
+                  "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "            WVDAgentHealthStatus\r\n            | where TimeGenerated > ago(5m)\r\n            | where Status != \"Available\"\r\n            | summarize count() by SessionHostName, Status\r\n          ",
+                      "timeAggregation": "Count",
+                      "operator": "GreaterThan",
+                      "threshold": 0
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": "[if(not(empty(parameters('alertEmailAddress'))), createArray(resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))), createArray())]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('{0}-alert-input-delay', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "AVD ユーザー入力遅延 高",
+                "description": "ユーザー入力遅延が 2000ms を超えた場合にアラート (UX 劣化の兆候)",
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "scopes": [
+                  "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "            Perf\r\n            | where TimeGenerated > ago(15m)\r\n            | where ObjectName == \"User Input Delay per Session\"\r\n            | where CounterName == \"Max Input Delay\"\r\n            | summarize AvgDelay = avg(CounterValue) by Computer\r\n            | where AvgDelay > 2000\r\n          ",
+                      "timeAggregation": "Count",
+                      "operator": "GreaterThan",
+                      "threshold": 0
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": "[if(not(empty(parameters('alertEmailAddress'))), createArray(resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))), createArray())]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('{0}-alert-fslogix-load', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "FSLogix プロファイルロード遅延",
+                "description": "FSLogix プロファイルのロード時間が 30秒を超えた場合にアラート",
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "scopes": [
+                  "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "            Perf\r\n            | where TimeGenerated > ago(15m)\r\n            | where ObjectName == \"FSLogix Apps\"\r\n            | where CounterName == \"Profile Load Time (ms)\"\r\n            | summarize AvgLoadTime = avg(CounterValue) by Computer\r\n            | where AvgLoadTime > 30000\r\n          ",
+                      "timeAggregation": "Count",
+                      "operator": "GreaterThan",
+                      "threshold": 0
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": "[if(not(empty(parameters('alertEmailAddress'))), createArray(resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))), createArray())]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('{0}-alert-connection-error', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "AVD 接続エラー",
+                "description": "AVD への接続が失敗した場合にアラート",
+                "severity": 1,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT5M",
+                "scopes": [
+                  "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "            WVDConnections\r\n            | where TimeGenerated > ago(5m)\r\n            | where State == \"Failed\"\r\n            | summarize FailureCount = count() by CorrelationId, UserName\r\n          ",
+                      "timeAggregation": "Count",
+                      "operator": "GreaterThan",
+                      "threshold": 0
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": "[if(not(empty(parameters('alertEmailAddress'))), createArray(resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))), createArray())]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/actionGroups', format('{0}-ag-avd', parameters('prefix')))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/workbooks",
+              "apiVersion": "2023-06-01",
+              "name": "[guid(format('{0}-workbook-avd-insights', parameters('prefix')))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "shared",
+              "properties": {
+                "displayName": "[format('{0} - AVD Insights ダッシュボード', parameters('prefix'))]",
+                "category": "workbook",
+                "sourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]",
+                "serializedData": "[variables('$fxv#0')]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
@@ -222,6 +501,10 @@
             "workspaceName": {
               "type": "string",
               "value": "[format('{0}-law', parameters('prefix'))]"
+            },
+            "dcrId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('{0}-dcr-avd-insights', parameters('prefix')))]"
             }
           }
         }
@@ -1465,6 +1748,246 @@
     },
     {
       "copy": {
+        "name": "fslogixStorage",
+        "count": "[length(parameters('spokes'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name)]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "spokeName": {
+            "value": "[parameters('spokes')[copyIndex()].name]"
+          },
+          "subnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.sessionHostSubnetId.value]"
+          },
+          "vnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.spokeVnetId.value]"
+          },
+          "shareQuotaGB": {
+            "value": "[parameters('fslogixShareQuotaGB')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "14760750813317501307"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "spokeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke の識別名"
+              }
+            },
+            "subnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Session Host サブネット ID (プライベートエンドポイント用)"
+              }
+            },
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "VNet ID (プライベート DNS ゾーンリンク用)"
+              }
+            },
+            "shareQuotaGB": {
+              "type": "int",
+              "defaultValue": 100,
+              "metadata": {
+                "description": "ファイル共有のクォータ (GB)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "variables": {
+            "storageAccountName": "[replace(format('{0}fs{1}', parameters('prefix'), parameters('spokeName')), '-', '')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Storage/storageAccounts",
+              "apiVersion": "2023-05-01",
+              "name": "[if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "FileStorage",
+              "sku": {
+                "name": "Premium_LRS"
+              },
+              "properties": {
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
+                "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": true,
+                "publicNetworkAccess": "Disabled",
+                "networkAcls": {
+                  "defaultAction": "Deny",
+                  "bypass": "AzureServices"
+                },
+                "azureFilesIdentityBasedAuthentication": {
+                  "directoryServiceOptions": "AD"
+                },
+                "largeFileSharesState": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/fileServices",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')), 'default')]",
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+              "apiVersion": "2023-05-01",
+              "name": "[format('{0}/{1}/{2}', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')), 'default', 'fslogix-profiles')]",
+              "properties": {
+                "shareQuota": "[parameters('shareQuotaGB')]",
+                "enabledProtocols": "SMB",
+                "accessTier": "Premium"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')), 'default')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-{1}-pe-fslogix', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "subnet": {
+                  "id": "[parameters('subnetId')]"
+                },
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "[format('{0}-{1}-pls-fslogix', parameters('prefix'), parameters('spokeName'))]",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')))]",
+                      "groupIds": [
+                        "file"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.file.core.windows.net",
+              "location": "global",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.file.core.windows.net', format('{0}-vnet-link', parameters('spokeName')))]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.file.core.windows.net')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}-pe-fslogix', parameters('prefix'), parameters('spokeName')), 'default')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "privatelink-file-core-windows-net",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.file.core.windows.net')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.file.core.windows.net')]",
+                "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-{1}-pe-fslogix', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "storageAccountId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Storage/storageAccounts', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')))]"
+            },
+            "storageAccountName": {
+              "type": "string",
+              "value": "[if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName'))]"
+            },
+            "profileShareName": {
+              "type": "string",
+              "value": "fslogix-profiles"
+            },
+            "profileSharePath": {
+              "type": "string",
+              "value": "[format('\\\\{0}.file.core.windows.net\\{1}', if(greater(length(variables('storageAccountName')), 24), substring(variables('storageAccountName'), 0, 24), variables('storageAccountName')), 'fslogix-profiles')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-hub-to-{0}-peering', parameters('spokes')[copyIndex()].name))]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
+      ]
+    },
+    {
+      "copy": {
         "name": "avdHostPools",
         "count": "[length(parameters('spokes'))]"
       },
@@ -1490,6 +2013,9 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
           },
+          "hostPoolType": {
+            "value": "[parameters('spokes')[copyIndex()].hostPoolType]"
+          },
           "tokenExpirationTime": {
             "value": "[parameters('tokenExpirationTime')]"
           },
@@ -1504,7 +2030,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "5129762858872751220"
+              "templateHash": "5186881309027094731"
             }
           },
           "parameters": {
@@ -1548,17 +2074,29 @@
               "defaultValue": "BreadthFirst",
               "allowedValues": [
                 "BreadthFirst",
-                "DepthFirst"
+                "DepthFirst",
+                "Persistent"
               ],
               "metadata": {
-                "description": "負荷分散アルゴリズム"
+                "description": "負荷分散アルゴリズム (Pooled の場合)"
               }
             },
             "maxSessionLimit": {
               "type": "int",
               "defaultValue": 10,
               "metadata": {
-                "description": "最大セッション数 (ホストあたり)"
+                "description": "最大セッション数 (ホストあたり, Pooled の場合のみ有効)"
+              }
+            },
+            "personalDesktopAssignmentType": {
+              "type": "string",
+              "defaultValue": "Automatic",
+              "allowedValues": [
+                "Automatic",
+                "Direct"
+              ],
+              "metadata": {
+                "description": "Personal の場合のデスクトップ割り当てタイプ"
               }
             },
             "tokenExpirationTime": {
@@ -1591,8 +2129,9 @@
               "tags": "[parameters('tags')]",
               "properties": {
                 "hostPoolType": "[parameters('hostPoolType')]",
-                "loadBalancerType": "[parameters('loadBalancerType')]",
-                "maxSessionLimit": "[parameters('maxSessionLimit')]",
+                "loadBalancerType": "[if(equals(parameters('hostPoolType'), 'Personal'), 'Persistent', parameters('loadBalancerType'))]",
+                "maxSessionLimit": "[if(equals(parameters('hostPoolType'), 'Personal'), 999999, parameters('maxSessionLimit'))]",
+                "personalDesktopAssignmentType": "[if(equals(parameters('hostPoolType'), 'Personal'), parameters('personalDesktopAssignmentType'), null())]",
                 "preferredAppGroupType": "Desktop",
                 "startVMOnConnect": true,
                 "validationEnvironment": false,
@@ -1754,6 +2293,15 @@
           "hostPoolRegistrationToken": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolRegistrationToken.value]"
           },
+          "hostPoolType": {
+            "value": "[parameters('spokes')[copyIndex()].hostPoolType]"
+          },
+          "fslogixProfileSharePath": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.profileSharePath.value]"
+          },
+          "dcrId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.dcrId.value]"
+          },
           "tags": {
             "value": "[parameters('tags')]"
           }
@@ -1765,7 +2313,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "14807194669697222260"
+              "templateHash": "6108572493249389119"
             }
           },
           "parameters": {
@@ -1858,6 +2406,31 @@
                 "description": "AVD Host Pool 登録トークン"
               }
             },
+            "hostPoolType": {
+              "type": "string",
+              "defaultValue": "Pooled",
+              "allowedValues": [
+                "Pooled",
+                "Personal"
+              ],
+              "metadata": {
+                "description": "ホストプールタイプ (Pooled=マルチセッション, Personal=シングルセッション)"
+              }
+            },
+            "fslogixProfileSharePath": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "FSLogix プロファイル共有の UNC パス"
+              }
+            },
+            "dcrId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "DCR (Data Collection Rule) の ID"
+              }
+            },
             "tags": {
               "type": "object",
               "defaultValue": {},
@@ -1865,6 +2438,21 @@
                 "description": "タグ"
               }
             }
+          },
+          "variables": {
+            "multiSessionImage": {
+              "publisher": "MicrosoftWindowsDesktop",
+              "offer": "office-365",
+              "sku": "win11-24h2-avd-m365",
+              "version": "latest"
+            },
+            "singleSessionImage": {
+              "publisher": "MicrosoftWindowsDesktop",
+              "offer": "windows-11",
+              "sku": "win11-24h2-ent",
+              "version": "latest"
+            },
+            "imageReference": "[if(equals(parameters('hostPoolType'), 'Pooled'), variables('multiSessionImage'), variables('singleSessionImage'))]"
           },
           "resources": [
             {
@@ -1926,12 +2514,7 @@
                   }
                 },
                 "storageProfile": {
-                  "imageReference": {
-                    "publisher": "MicrosoftWindowsDesktop",
-                    "offer": "office-365",
-                    "sku": "win11-24h2-avd-m365",
-                    "version": "latest"
-                  },
+                  "imageReference": "[variables('imageReference')]",
                   "osDisk": {
                     "name": "[format('{0}-{1}-osdisk-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[copyIndex()]), 2, '0'))]",
                     "createOption": "FromImage",
@@ -2026,6 +2609,71 @@
                 "[resourceId('Microsoft.Compute/virtualMachines/extensions', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]]), 2, '0')), 'JoinDomain')]",
                 "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
               ]
+            },
+            {
+              "copy": {
+                "name": "fslogixExtension",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "condition": "[not(empty(parameters('fslogixProfileSharePath')))]",
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')), 'FSLogixConfig')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.10",
+                "autoUpgradeMinorVersion": true,
+                "protectedSettings": {
+                  "commandToExecute": "[format('powershell -ExecutionPolicy Bypass -Command \"New-Item -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Force; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name Enabled -Value 1 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name VHDLocations -Value ''{0}'' -Type MultiString; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name DeleteLocalProfileWhenVHDShouldApply -Value 1 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name FlipFlopProfileDirectoryName -Value 1 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name SizeInMBs -Value 30000 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name VolumeType -Value VHDX -Type String; Write-Output ''FSLogix configured successfully''\"', parameters('fslogixProfileSharePath'))]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]]), 2, '0')), 'AVDAgent')]",
+                "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "amaExtension",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')), 'AzureMonitorWindowsAgent')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publisher": "Microsoft.Azure.Monitor",
+                "type": "AzureMonitorWindowsAgent",
+                "typeHandlerVersion": "1.0",
+                "autoUpgradeMinorVersion": true,
+                "enableAutomaticUpgrade": true
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]]), 2, '0')), 'AVDAgent')]",
+                "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "dcrAssociation",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "condition": "[not(empty(parameters('dcrId')))]",
+              "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+              "apiVersion": "2023-03-11",
+              "scope": "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]",
+              "name": "[format('{0}-{1}-sh{2}-dcr-assoc', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[copyIndex()]), 2, '0'))]",
+              "properties": {
+                "dataCollectionRuleId": "[parameters('dcrId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]]), 2, '0')), 'AzureMonitorWindowsAgent')]",
+                "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              ]
             }
           ],
           "outputs": {
@@ -2042,7 +2690,9 @@
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-hub-to-{0}-peering', parameters('spokes')[copyIndex()].name))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
       ]
@@ -2078,6 +2728,17 @@
         "count": "[length(parameters('spokes'))]",
         "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolName.value]"
       }
+    },
+    "fslogixSharePaths": {
+      "type": "array",
+      "copy": {
+        "count": "[length(parameters('spokes'))]",
+        "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.profileSharePath.value]"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
     }
   }
 }

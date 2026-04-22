@@ -18,12 +18,16 @@ param logAnalyticsWorkspaceId string
 @allowed(['Pooled', 'Personal'])
 param hostPoolType string = 'Pooled'
 
-@description('負荷分散アルゴリズム')
-@allowed(['BreadthFirst', 'DepthFirst'])
+@description('負荷分散アルゴリズム (Pooled の場合)')
+@allowed(['BreadthFirst', 'DepthFirst', 'Persistent'])
 param loadBalancerType string = 'BreadthFirst'
 
-@description('最大セッション数 (ホストあたり)')
+@description('最大セッション数 (ホストあたり, Pooled の場合のみ有効)')
 param maxSessionLimit int = 10
+
+@description('Personal の場合のデスクトップ割り当てタイプ')
+@allowed(['Automatic', 'Direct'])
+param personalDesktopAssignmentType string = 'Automatic'
 
 @description('ホストプール登録トークンの有効期限 (ISO 8601)')
 param tokenExpirationTime string
@@ -41,8 +45,9 @@ resource hostPool 'Microsoft.DesktopVirtualization/hostPools@2024-04-08-preview'
   tags: tags
   properties: {
     hostPoolType: hostPoolType
-    loadBalancerType: loadBalancerType
-    maxSessionLimit: maxSessionLimit
+    loadBalancerType: hostPoolType == 'Personal' ? 'Persistent' : loadBalancerType
+    maxSessionLimit: hostPoolType == 'Personal' ? 999999 : maxSessionLimit
+    personalDesktopAssignmentType: hostPoolType == 'Personal' ? personalDesktopAssignmentType : null
     preferredAppGroupType: 'Desktop'
     startVMOnConnect: true
     validationEnvironment: false

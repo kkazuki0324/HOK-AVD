@@ -1,0 +1,249 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# AVD Insights ダッシュボード\nAzure Virtual Desktop の監視・分析用ダッシュボードです。"
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "timerange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": { "durationMs": 86400000 },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 3600000 },
+                { "durationMs": 14400000 },
+                { "durationMs": 43200000 },
+                { "durationMs": 86400000 },
+                { "durationMs": 259200000 },
+                { "durationMs": 604800000 }
+              ]
+            }
+          }
+        ]
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 📊 接続状況"
+      },
+      "name": "section-connections"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "WVDConnections\n| where TimeGenerated {TimeRange}\n| summarize TotalConnections = count(), SuccessfulConnections = countif(State == 'Connected'), FailedConnections = countif(State == 'Failed')\n| extend SuccessRate = round(todouble(SuccessfulConnections) / todouble(TotalConnections) * 100, 2)",
+        "size": 4,
+        "title": "接続サマリー",
+        "queryType": 0,
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": { "columnMatch": "Column1" },
+          "leftContent": { "columnMatch": "Column2", "formatter": 12 }
+        }
+      },
+      "name": "connection-summary"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "WVDConnections\n| where TimeGenerated {TimeRange}\n| summarize Count = count() by bin(TimeGenerated, 1h), State\n| render timechart",
+        "size": 0,
+        "title": "接続トレンド (時間別)",
+        "queryType": 0,
+        "visualization": "timechart"
+      },
+      "name": "connection-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "WVDConnections\n| where TimeGenerated {TimeRange}\n| where State == 'Failed'\n| summarize FailureCount = count() by CorrelationId, UserName, SessionHostName\n| sort by FailureCount desc\n| take 20",
+        "size": 0,
+        "title": "接続失敗一覧 (Top 20)",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "connection-failures"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 🖥️ Session Host ヘルス"
+      },
+      "name": "section-health"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "WVDAgentHealthStatus\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by SessionHostName\n| summarize Available = countif(Status == 'Available'), Unavailable = countif(Status == 'Unavailable'), NeedsAssistance = countif(Status == 'NeedsAssistance'), Shutdown = countif(Status == 'Shutdown')",
+        "size": 4,
+        "title": "Session Host ステータス",
+        "queryType": 0,
+        "visualization": "tiles"
+      },
+      "name": "session-host-status"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "WVDAgentHealthStatus\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by SessionHostName\n| project SessionHostName, Status, LastHeartBeat, ActiveSessions, AllowNewSessions, AgentVersion, OSVersion\n| sort by Status asc",
+        "size": 0,
+        "title": "Session Host 一覧",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "session-host-list"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## ⚡ パフォーマンス"
+      },
+      "name": "section-performance"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'User Input Delay per Session' and CounterName == 'Max Input Delay'\n| summarize AvgDelay = avg(CounterValue), MaxDelay = max(CounterValue), P95Delay = percentile(CounterValue, 95) by Computer\n| sort by AvgDelay desc",
+        "size": 0,
+        "title": "ユーザー入力遅延 (ms) - Session Host 別",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "input-delay"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'User Input Delay per Session' and CounterName == 'Max Input Delay'\n| summarize AvgDelay = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\n| render timechart",
+        "size": 0,
+        "title": "ユーザー入力遅延トレンド",
+        "queryType": 0,
+        "visualization": "timechart"
+      },
+      "name": "input-delay-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Processor Information' and CounterName == '% Processor Time' and InstanceName == '_Total'\n| summarize AvgCPU = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\n| render timechart",
+        "size": 0,
+        "title": "CPU 使用率トレンド",
+        "queryType": 0,
+        "visualization": "timechart"
+      },
+      "name": "cpu-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == 'Available Mbytes'\n| summarize AvgMem = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\n| render timechart",
+        "size": 0,
+        "title": "メモリ空き容量トレンド (MB)",
+        "queryType": 0,
+        "visualization": "timechart"
+      },
+      "name": "memory-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'RemoteFX Network' and CounterName == 'Current TCP RTT'\n| summarize AvgRTT = avg(CounterValue), P95RTT = percentile(CounterValue, 95) by Computer\n| sort by AvgRTT desc",
+        "size": 0,
+        "title": "ネットワーク RTT (ms)",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "network-rtt"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 📁 FSLogix プロファイル"
+      },
+      "name": "section-fslogix"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'FSLogix Apps' and CounterName == 'Profile Load Time (ms)'\n| summarize AvgLoadTime = avg(CounterValue), MaxLoadTime = max(CounterValue), P95LoadTime = percentile(CounterValue, 95) by Computer\n| sort by AvgLoadTime desc",
+        "size": 0,
+        "title": "FSLogix プロファイルロード時間 (ms)",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "fslogix-load-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Event\n| where TimeGenerated {TimeRange}\n| where Source == 'Microsoft-FSLogix-Apps'\n| where EventLevelName in ('Error', 'Warning')\n| summarize Count = count() by EventLevelName, EventID, RenderedDescription\n| sort by Count desc\n| take 20",
+        "size": 0,
+        "title": "FSLogix エラー・警告 (Top 20)",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "fslogix-errors"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## 📈 セッション統計"
+      },
+      "name": "section-sessions"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Terminal Services'\n| where CounterName in ('Active Sessions', 'Inactive Sessions', 'Total Sessions')\n| summarize Value = avg(CounterValue) by bin(TimeGenerated, 15m), CounterName\n| render timechart",
+        "size": 0,
+        "title": "セッション数トレンド",
+        "queryType": 0,
+        "visualization": "timechart"
+      },
+      "name": "session-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "WVDConnections\n| where TimeGenerated {TimeRange}\n| where State == 'Connected'\n| summarize SessionDuration = avg(datetime_diff('minute', EndTime, StartTime)) by UserName\n| sort by SessionDuration desc\n| take 20",
+        "size": 0,
+        "title": "ユーザー別平均セッション時間 (分)",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "session-duration"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

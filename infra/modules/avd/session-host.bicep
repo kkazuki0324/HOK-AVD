@@ -1,5 +1,6 @@
 // ============================================================================
-// AVD Session Host VMs - 実運用レベルの構成
+// AVD Session Host VMs - マルチセッション / シングルセッション対応
+// FSLogix + Azure Monitor Agent 統合
 // ============================================================================
 
 @description('リソースのデプロイ先リージョン')
@@ -49,8 +50,35 @@ param hostPoolName string
 @secure()
 param hostPoolRegistrationToken string
 
+@description('ホストプールタイプ (Pooled=マルチセッション, Personal=シングルセッション)')
+@allowed(['Pooled', 'Personal'])
+param hostPoolType string = 'Pooled'
+
+@description('FSLogix プロファイル共有の UNC パス')
+param fslogixProfileSharePath string = ''
+
+@description('DCR (Data Collection Rule) の ID')
+param dcrId string = ''
+
 @description('タグ')
 param tags object = {}
+
+// --- イメージ参照: ホストプールタイプに応じたイメージを選択 ---
+var multiSessionImage = {
+  publisher: 'MicrosoftWindowsDesktop'
+  offer: 'office-365'
+  sku: 'win11-24h2-avd-m365'
+  version: 'latest'
+}
+
+var singleSessionImage = {
+  publisher: 'MicrosoftWindowsDesktop'
+  offer: 'windows-11'
+  sku: 'win11-24h2-ent'
+  version: 'latest'
+}
+
+var imageReference = hostPoolType == 'Pooled' ? multiSessionImage : singleSessionImage
 
 // --- Session Host VMs ---
 resource sessionHostNic 'Microsoft.Network/networkInterfaces@2024-05-01' = [
@@ -104,13 +132,7 @@ resource sessionHostVm 'Microsoft.Compute/virtualMachines@2024-07-01' = [
         }
       }
       storageProfile: {
-        imageReference: {
-          // Windows 11 Enterprise Multi-session + Microsoft 365 Apps
-          publisher: 'MicrosoftWindowsDesktop'
-          offer: 'office-365'
-          sku: 'win11-24h2-avd-m365'
-          version: 'latest'
-        }
+        imageReference: imageReference
         osDisk: {
           name: '${prefix}-${spokeName}-osdisk-sh${padLeft(string(i), 2, '0')}'
           createOption: 'FromImage'
@@ -195,6 +217,62 @@ resource avdAgentExtension 'Microsoft.Compute/virtualMachines/extensions@2024-07
     }
     dependsOn: [
       domainJoinExtension[i]
+    ]
+  }
+]
+
+// --- FSLogix 設定 (プロファイルコンテナ) ---
+resource fslogixExtension 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = [
+  for i in range(0, sessionHostCount): if (!empty(fslogixProfileSharePath)) {
+    parent: sessionHostVm[i]
+    name: 'FSLogixConfig'
+    location: location
+    tags: tags
+    properties: {
+      publisher: 'Microsoft.Compute'
+      type: 'CustomScriptExtension'
+      typeHandlerVersion: '1.10'
+      autoUpgradeMinorVersion: true
+      protectedSettings: {
+        commandToExecute: 'powershell -ExecutionPolicy Bypass -Command "New-Item -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Force; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name Enabled -Value 1 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name VHDLocations -Value \'${fslogixProfileSharePath}\' -Type MultiString; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name DeleteLocalProfileWhenVHDShouldApply -Value 1 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name FlipFlopProfileDirectoryName -Value 1 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name SizeInMBs -Value 30000 -Type DWord; Set-ItemProperty -Path HKLM:\\SOFTWARE\\FSLogix\\Profiles -Name VolumeType -Value VHDX -Type String; Write-Output \'FSLogix configured successfully\'"'
+      }
+    }
+    dependsOn: [
+      avdAgentExtension[i]
+    ]
+  }
+]
+
+// --- Azure Monitor Agent ---
+resource amaExtension 'Microsoft.Compute/virtualMachines/extensions@2024-07-01' = [
+  for i in range(0, sessionHostCount): {
+    parent: sessionHostVm[i]
+    name: 'AzureMonitorWindowsAgent'
+    location: location
+    tags: tags
+    properties: {
+      publisher: 'Microsoft.Azure.Monitor'
+      type: 'AzureMonitorWindowsAgent'
+      typeHandlerVersion: '1.0'
+      autoUpgradeMinorVersion: true
+      enableAutomaticUpgrade: true
+    }
+    dependsOn: [
+      avdAgentExtension[i]
+    ]
+  }
+]
+
+// --- DCR 関連付け ---
+resource dcrAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = [
+  for i in range(0, sessionHostCount): if (!empty(dcrId)) {
+    name: '${prefix}-${spokeName}-sh${padLeft(string(i), 2, '0')}-dcr-assoc'
+    scope: sessionHostVm[i]
+    properties: {
+      dataCollectionRuleId: dcrId
+    }
+    dependsOn: [
+      amaExtension[i]
     ]
   }
 ]

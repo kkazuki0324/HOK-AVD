@@ -5,7 +5,9 @@
 //   Hub VNet:   Azure Firewall + AD Domain Controller + Azure Bastion
 //   Spoke VNets: 各 Spoke に AVD Host Pool + Session Hosts
 //   VNet Peering: Hub ⇔ 各 Spoke
-//   監視: Log Analytics Workspace
+//   監視: Log Analytics + AVD Insights (DCR + Workbook + アラート)
+//   プロファイル: FSLogix Profile Container (Azure Files Premium)
+//   セッション: マルチセッション (Pooled) + シングルセッション (Personal) 対応
 // ============================================================================
 
 targetScope = 'subscription'
@@ -38,7 +40,7 @@ param domainJoinUsername string
 @secure()
 param domainJoinPassword string
 
-@description('Spoke 定義の配列')
+@description('Spoke 定義の配列 (hostPoolType: Pooled=マルチセッション / Personal=シングルセッション)')
 param spokes array = [
   {
     name: 'spoke01'
@@ -46,6 +48,7 @@ param spokes array = [
     sessionHostSubnetPrefix: '10.1.0.0/24'
     sessionHostCount: 2
     sessionHostVmSize: 'Standard_D4s_v5'
+    hostPoolType: 'Pooled'
   }
   {
     name: 'spoke02'
@@ -53,6 +56,7 @@ param spokes array = [
     sessionHostSubnetPrefix: '10.2.0.0/24'
     sessionHostCount: 2
     sessionHostVmSize: 'Standard_D4s_v5'
+    hostPoolType: 'Pooled'
   }
   {
     name: 'spoke03'
@@ -60,11 +64,18 @@ param spokes array = [
     sessionHostSubnetPrefix: '10.3.0.0/24'
     sessionHostCount: 2
     sessionHostVmSize: 'Standard_D4s_v5'
+    hostPoolType: 'Personal'
   }
 ]
 
 @description('ホストプール登録トークンの有効期限 (ISO 8601)')
 param tokenExpirationTime string
+
+@description('FSLogix プロファイル共有のクォータ (GB)')
+param fslogixShareQuotaGB int = 100
+
+@description('アラート通知先メールアドレス (空の場合はアラートアクションなし)')
+param alertEmailAddress string = ''
 
 @description('タグ')
 param tags object = {
@@ -81,7 +92,7 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   tags: tags
 }
 
-// ======================== Log Analytics ========================
+// ======================== Log Analytics + 監視基盤 ========================
 
 module logAnalytics 'modules/monitoring/log-analytics.bicep' = {
   name: 'deploy-log-analytics'
@@ -89,6 +100,7 @@ module logAnalytics 'modules/monitoring/log-analytics.bicep' = {
   params: {
     location: location
     prefix: prefix
+    alertEmailAddress: alertEmailAddress
     tags: tags
   }
 }
@@ -172,6 +184,27 @@ module hubToSpokePeerings 'modules/network/hub-to-spoke-peering.bicep' = [
   }
 ]
 
+// ======================== FSLogix Storage (Spoke ごと) ========================
+
+module fslogixStorage 'modules/storage/fslogix-storage.bicep' = [
+  for (spoke, i) in spokes: {
+    name: 'deploy-${spoke.name}-fslogix-storage'
+    scope: rg
+    params: {
+      location: location
+      prefix: prefix
+      spokeName: spoke.name
+      subnetId: spokeVnets[i].outputs.sessionHostSubnetId
+      vnetId: spokeVnets[i].outputs.spokeVnetId
+      shareQuotaGB: fslogixShareQuotaGB
+      tags: tags
+    }
+    dependsOn: [
+      hubToSpokePeerings[i]
+    ]
+  }
+]
+
 // ======================== AVD Host Pool / Workspace (Spoke ごと) ========================
 
 module avdHostPools 'modules/avd/host-pool.bicep' = [
@@ -183,6 +216,7 @@ module avdHostPools 'modules/avd/host-pool.bicep' = [
       prefix: prefix
       spokeName: spoke.name
       logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+      hostPoolType: spoke.hostPoolType
       tokenExpirationTime: tokenExpirationTime
       tags: tags
     }
@@ -209,6 +243,9 @@ module sessionHosts 'modules/avd/session-host.bicep' = [
       domainJoinPassword: domainJoinPassword
       hostPoolName: avdHostPools[i].outputs.hostPoolName
       hostPoolRegistrationToken: avdHostPools[i].outputs.hostPoolRegistrationToken
+      hostPoolType: spoke.hostPoolType
+      fslogixProfileSharePath: fslogixStorage[i].outputs.profileSharePath
+      dcrId: logAnalytics.outputs.dcrId
       tags: tags
     }
     dependsOn: [
@@ -225,3 +262,5 @@ output firewallPrivateIp string = firewall.outputs.firewallPrivateIp
 output adVmPrivateIp string = domainController.outputs.adVmPrivateIp
 output spokeVnetIds array = [for (spoke, i) in spokes: spokeVnets[i].outputs.spokeVnetId]
 output hostPoolNames array = [for (spoke, i) in spokes: avdHostPools[i].outputs.hostPoolName]
+output fslogixSharePaths array = [for (spoke, i) in spokes: fslogixStorage[i].outputs.profileSharePath]
+output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId

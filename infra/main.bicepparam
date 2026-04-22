@@ -18,6 +18,7 @@ param domainJoinUsername = '' // ← 例: admin@hok.local
 param domainJoinPassword = '' // ← デプロイ時に -p で指定
 
 // --- Spoke 定義 (追加・削除で Spoke 数を変更可能) ---
+// hostPoolType: 'Pooled' = マルチセッション (共有), 'Personal' = シングルセッション (専用)
 param spokes = [
   {
     name: 'spoke01'
@@ -25,6 +26,7 @@ param spokes = [
     sessionHostSubnetPrefix: '10.1.0.0/24'
     sessionHostCount: 2
     sessionHostVmSize: 'Standard_D4s_v5'
+    hostPoolType: 'Pooled' // マルチセッション
   }
   {
     name: 'spoke02'
@@ -32,6 +34,7 @@ param spokes = [
     sessionHostSubnetPrefix: '10.2.0.0/24'
     sessionHostCount: 2
     sessionHostVmSize: 'Standard_D4s_v5'
+    hostPoolType: 'Pooled' // マルチセッション
   }
   {
     name: 'spoke03'
@@ -39,8 +42,15 @@ param spokes = [
     sessionHostSubnetPrefix: '10.3.0.0/24'
     sessionHostCount: 2
     sessionHostVmSize: 'Standard_D4s_v5'
+    hostPoolType: 'Personal' // シングルセッション (1ユーザー1VM)
   }
 ]
+
+// --- FSLogix プロファイル共有設定 ---
+param fslogixShareQuotaGB = 100
+
+// --- 監視設定 ---
+param alertEmailAddress = '' // ← アラート通知先メール (空=アクションなし)
 
 // --- ホストプール登録トークン有効期限 (デプロイ日から 24h 後を設定) ---
 param tokenExpirationTime = '' // ← 例: 2026-04-23T12:00:00Z
