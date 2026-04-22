@@ -39,16 +39,16 @@
 
 ## 主な構成要素
 
-| コンポーネント | 説明 |
-|---|---|
-| **Hub VNet** | Azure Firewall, AD DC, Bastion を配置する中央ネットワーク |
-| **Azure Firewall** | 全 Spoke の AVD 必須 FQDN / ネットワークルール、M365 通信許可 |
-| **AD Domain Controller** | Windows Server 2022, AD DS を自動プロモーション |
-| **Azure Bastion** | 管理用の安全な RDP アクセス |
-| **Spoke VNets (複数)** | 各 Spoke に Session Host + Host Pool、UDR で Firewall 経由 |
-| **AVD Host Pool (Spoke ごと)** | Pooled / BreadthFirst、StartVMOnConnect 有効 |
-| **Session Hosts** | Windows 11 Enterprise Multi-session + M365 Apps |
-| **Log Analytics** | Firewall / 全 Host Pool / Workspace の診断ログ |
+| コンポーネント                 | 説明                                                          |
+| ------------------------------ | ------------------------------------------------------------- |
+| **Hub VNet**                   | Azure Firewall, AD DC, Bastion を配置する中央ネットワーク     |
+| **Azure Firewall**             | 全 Spoke の AVD 必須 FQDN / ネットワークルール、M365 通信許可 |
+| **AD Domain Controller**       | Windows Server 2022, AD DS を自動プロモーション               |
+| **Azure Bastion**              | 管理用の安全な RDP アクセス                                   |
+| **Spoke VNets (複数)**         | 各 Spoke に Session Host + Host Pool、UDR で Firewall 経由    |
+| **AVD Host Pool (Spoke ごと)** | Pooled / BreadthFirst、StartVMOnConnect 有効                  |
+| **Session Hosts**              | Windows 11 Enterprise Multi-session + M365 Apps               |
+| **Log Analytics**              | Firewall / 全 Host Pool / Workspace の診断ログ                |
 
 ## フォルダ構成
 
@@ -147,11 +147,11 @@ az deployment sub create \
 
 ### 基本パラメータ
 
-| パラメータ | デフォルト値 | 説明 |
-|---|---|---|
-| `location` | `japaneast` | デプロイ先リージョン |
-| `prefix` | `hok-avd` | リソース名プレフィックス |
-| `domainName` | `hok.local` | AD ドメイン名 |
+| パラメータ   | デフォルト値 | 説明                     |
+| ------------ | ------------ | ------------------------ |
+| `location`   | `japaneast`  | デプロイ先リージョン     |
+| `prefix`     | `hok-avd`    | リソース名プレフィックス |
+| `domainName` | `hok.local`  | AD ドメイン名            |
 
 ### Spoke 定義 (`spokes` パラメータ)
 
@@ -183,6 +183,7 @@ param spokes = [
 ## コスト目安 (3 Spoke 構成)
 
 主要なコスト要因:
+
 - Azure Firewall (Standard): 約 ¥150,000/月
 - Session Host VM (D4s_v5 x 2 x 3 Spoke): 約 ¥240,000/月
 - AD DC VM (B2ms x 1): 約 ¥10,000/月

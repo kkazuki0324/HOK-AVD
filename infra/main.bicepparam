@@ -9,13 +9,13 @@ param prefix = 'hok-avd'
 param resourceGroupName = 'hok-avd-rg'
 
 // --- 認証情報 (デプロイ時に入力) ---
-param adminUsername = ''          // ← DC / Session Host のローカル管理者
-param adminPassword = ''          // ← デプロイ時に -p で指定
+param adminUsername = '' // ← DC / Session Host のローカル管理者
+param adminPassword = '' // ← デプロイ時に -p で指定
 
 // --- AD 設定 ---
 param domainName = 'hok.local'
-param domainJoinUsername = ''     // ← 例: admin@hok.local
-param domainJoinPassword = ''     // ← デプロイ時に -p で指定
+param domainJoinUsername = '' // ← 例: admin@hok.local
+param domainJoinPassword = '' // ← デプロイ時に -p で指定
 
 // --- Spoke 定義 (追加・削除で Spoke 数を変更可能) ---
 param spokes = [
@@ -43,4 +43,4 @@ param spokes = [
 ]
 
 // --- ホストプール登録トークン有効期限 (デプロイ日から 24h 後を設定) ---
-param tokenExpirationTime = ''    // ← 例: 2026-04-23T12:00:00Z
+param tokenExpirationTime = '' // ← 例: 2026-04-23T12:00:00Z

@@ -43,10 +43,10 @@ Write-Host ""
 # --- What-if 検証 ---
 Write-Host "[1/3] デプロイ前の検証 (what-if)..." -ForegroundColor Green
 az deployment sub what-if `
-  --name "$DeploymentName-whatif" `
-  --location $Location `
-  --template-file $TemplateFile `
-  --parameters `
+    --name "$DeploymentName-whatif" `
+    --location $Location `
+    --template-file $TemplateFile `
+    --parameters `
     prefix=$Prefix `
     adminUsername=$AdminUsername `
     adminPassword=$AdminPasswordPlain `
@@ -64,10 +64,10 @@ if ($Confirm -ne "y" -and $Confirm -ne "Y") {
 # --- デプロイ実行 ---
 Write-Host "[2/3] デプロイ実行中..." -ForegroundColor Green
 az deployment sub create `
-  --name $DeploymentName `
-  --location $Location `
-  --template-file $TemplateFile `
-  --parameters `
+    --name $DeploymentName `
+    --location $Location `
+    --template-file $TemplateFile `
+    --parameters `
     prefix=$Prefix `
     adminUsername=$AdminUsername `
     adminPassword=$AdminPasswordPlain `
@@ -80,9 +80,9 @@ Write-Host "[3/3] デプロイ完了!" -ForegroundColor Green
 Write-Host ""
 Write-Host "--- デプロイ結果 ---" -ForegroundColor Yellow
 az deployment sub show `
-  --name $DeploymentName `
-  --query "properties.outputs" `
-  --output table
+    --name $DeploymentName `
+    --query "properties.outputs" `
+    --output table
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
