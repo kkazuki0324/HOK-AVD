@@ -43,18 +43,18 @@
 
 ## 主な構成要素
 
-| コンポーネント                             | 説明                                                                                        |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| **Hub VNet**                               | Azure Firewall, AD DC, Bastion を配置する中央ネットワーク                                   |
-| **Azure Firewall**                         | 全 Spoke の AVD 必須 FQDN / ネットワークルール、M365 通信許可                               |
-| **AD Domain Controller**                   | Windows Server 2022, AD DS を自動プロモーション                                             |
-| **Azure Bastion**                          | 管理用の安全な RDP アクセス                                                                 |
-| **Spoke VNets (複数)**                     | 各 Spoke に Session Host + Host Pool、UDR で Firewall 経由                                  |
-| **AVD Host Pool - Pooled (マルチセッション)** | BreadthFirst / 複数ユーザー共有、Win11 Multi-session + M365 Apps                          |
+| コンポーネント                                    | 説明                                                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Hub VNet**                                      | Azure Firewall, AD DC, Bastion を配置する中央ネットワーク                             |
+| **Azure Firewall**                                | 全 Spoke の AVD 必須 FQDN / ネットワークルール、M365 通信許可                         |
+| **AD Domain Controller**                          | Windows Server 2022, AD DS を自動プロモーション                                       |
+| **Azure Bastion**                                 | 管理用の安全な RDP アクセス                                                           |
+| **Spoke VNets (複数)**                            | 各 Spoke に Session Host + Host Pool、UDR で Firewall 経由                            |
+| **AVD Host Pool - Pooled (マルチセッション)**     | BreadthFirst / 複数ユーザー共有、Win11 Multi-session + M365 Apps                      |
 | **AVD Host Pool - Personal (シングルセッション)** | 1ユーザー1VM 専用割り当て、Win11 Enterprise                                           |
-| **FSLogix Profile Container**              | Azure Files Premium + プライベートエンドポイント、プロファイル外出し                        |
-| **AVD Insights 監視基盤**                  | DCR + AMA + Workbook + アラート (Session Host障害, 入力遅延, FSLogix, 接続エラー)           |
-| **Log Analytics**                          | Firewall / Host Pool / Workspace の診断ログ + パフォーマンスカウンター + イベントログ       |
+| **FSLogix Profile Container**                     | Azure Files Premium + プライベートエンドポイント、プロファイル外出し                  |
+| **AVD Insights 監視基盤**                         | DCR + AMA + Workbook + アラート (Session Host障害, 入力遅延, FSLogix, 接続エラー)     |
+| **Log Analytics**                                 | Firewall / Host Pool / Workspace の診断ログ + パフォーマンスカウンター + イベントログ |
 
 ## フォルダ構成
 
@@ -86,25 +86,26 @@ AVD の監視は「難しい」と言われがちですが、本環境では **A
 
 ### 収集データ
 
-| カテゴリ               | 内容                                                                                |
-| ---------------------- | ----------------------------------------------------------------------------------- |
+| カテゴリ                     | 内容                                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
 | **パフォーマンスカウンター** | CPU, メモリ, ディスク, ネットワーク, ターミナルサービス, ユーザー入力遅延, RemoteFX, FSLogix |
-| **イベントログ**       | System/Application (エラー・警告), FSLogix, RDS, ユーザープロファイル, GroupPolicy     |
-| **AVD 診断ログ**       | WVDConnections, WVDAgentHealthStatus (Host Pool / Workspace 診断設定)                |
-| **Firewall ログ**      | Network / Application ルール ヒット                                                  |
+| **イベントログ**             | System/Application (エラー・警告), FSLogix, RDS, ユーザープロファイル, GroupPolicy           |
+| **AVD 診断ログ**             | WVDConnections, WVDAgentHealthStatus (Host Pool / Workspace 診断設定)                        |
+| **Firewall ログ**            | Network / Application ルール ヒット                                                          |
 
 ### アラートルール
 
-| アラート名                        | 重大度 | トリガー条件                             |
-| --------------------------------- | ------ | ---------------------------------------- |
-| **Session Host 利用不可**         | Sev 1  | Session Host が Available 以外の状態     |
-| **ユーザー入力遅延 高**           | Sev 2  | 平均入力遅延 > 2000ms                    |
-| **FSLogix プロファイルロード遅延** | Sev 2  | 平均ロード時間 > 30秒                    |
-| **AVD 接続エラー**                | Sev 1  | 接続が Failed 状態                       |
+| アラート名                         | 重大度 | トリガー条件                         |
+| ---------------------------------- | ------ | ------------------------------------ |
+| **Session Host 利用不可**          | Sev 1  | Session Host が Available 以外の状態 |
+| **ユーザー入力遅延 高**            | Sev 2  | 平均入力遅延 > 2000ms                |
+| **FSLogix プロファイルロード遅延** | Sev 2  | 平均ロード時間 > 30秒                |
+| **AVD 接続エラー**                 | Sev 1  | 接続が Failed 状態                   |
 
 ### AVD Insights Workbook
 
 自動デプロイされる Workbook で以下を可視化:
+
 - 接続サマリー・トレンド・失敗一覧
 - Session Host ヘルス状態一覧
 - CPU/メモリ/ディスク パフォーマンストレンド
@@ -137,10 +138,10 @@ AVD の監視は「難しい」と言われがちですが、本環境では **A
 
 ## マルチセッション / シングルセッション
 
-| タイプ                      | イメージ                                    | ホストプール | ユースケース                      |
-| --------------------------- | ------------------------------------------- | ------------ | --------------------------------- |
-| **マルチセッション (Pooled)** | Win11 Enterprise Multi-session + M365 Apps | BreadthFirst | コスト効率重視、一般ユーザー向け  |
-| **シングルセッション (Personal)** | Win11 Enterprise                        | Persistent   | パフォーマンス重視、開発者向け    |
+| タイプ                            | イメージ                                   | ホストプール | ユースケース                     |
+| --------------------------------- | ------------------------------------------ | ------------ | -------------------------------- |
+| **マルチセッション (Pooled)**     | Win11 Enterprise Multi-session + M365 Apps | BreadthFirst | コスト効率重視、一般ユーザー向け |
+| **シングルセッション (Personal)** | Win11 Enterprise                           | Persistent   | パフォーマンス重視、開発者向け   |
 
 `spokes` パラメータの `hostPoolType` で Spoke ごとに指定できます。
 
@@ -229,13 +230,13 @@ az deployment sub create \
 
 ### 基本パラメータ
 
-| パラメータ              | デフォルト値 | 説明                                          |
-| ----------------------- | ------------ | --------------------------------------------- |
-| `location`              | `japaneast`  | デプロイ先リージョン                          |
-| `prefix`                | `hok-avd`    | リソース名プレフィックス                      |
-| `domainName`            | `hok.local`  | AD ドメイン名                                 |
-| `fslogixShareQuotaGB`   | `100`        | FSLogix プロファイル共有のクォータ (GB)       |
-| `alertEmailAddress`     | (空)         | アラート通知先メールアドレス                  |
+| パラメータ            | デフォルト値 | 説明                                    |
+| --------------------- | ------------ | --------------------------------------- |
+| `location`            | `japaneast`  | デプロイ先リージョン                    |
+| `prefix`              | `hok-avd`    | リソース名プレフィックス                |
+| `domainName`          | `hok.local`  | AD ドメイン名                           |
+| `fslogixShareQuotaGB` | `100`        | FSLogix プロファイル共有のクォータ (GB) |
+| `alertEmailAddress`   | (空)         | アラート通知先メールアドレス            |
 
 ### Spoke 定義 (`spokes` パラメータ)
 
