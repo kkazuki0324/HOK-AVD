@@ -117,6 +117,8 @@ resource workspaceDiag 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview
 // --- Outputs ---
 output hostPoolId string = hostPool.id
 output hostPoolName string = hostPool.name
-output hostPoolRegistrationToken string = hostPool.properties.registrationInfo.token
+
+@secure()
+output hostPoolRegistrationToken string = hostPool.listRegistrationTokens().value[0].token
 output appGroupId string = appGroup.id
 output workspaceId string = workspace.id

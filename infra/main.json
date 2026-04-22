@@ -1,11 +1,12 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "languageVersion": "2.0",
   "contentVersion": "1.0.0.0",
   "metadata": {
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "16245169794877745065"
+      "templateHash": "2533374131720116925"
     }
   },
   "parameters": {
@@ -160,15 +161,15 @@
       }
     }
   },
-  "resources": [
-    {
+  "resources": {
+    "rg": {
       "type": "Microsoft.Resources/resourceGroups",
       "apiVersion": "2024-03-01",
       "name": "[parameters('resourceGroupName')]",
       "location": "[parameters('location')]",
       "tags": "[parameters('tags')]"
     },
-    {
+    "logAnalytics": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-log-analytics",
@@ -545,10 +546,10 @@
         }
       },
       "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "rg"
       ]
     },
-    {
+    "hubVnet": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-hub-vnet",
@@ -804,10 +805,10 @@
         }
       },
       "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "rg"
       ]
     },
-    {
+    "firewall": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-firewall",
@@ -825,10 +826,10 @@
             "value": "[parameters('prefix')]"
           },
           "firewallSubnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.firewallSubnetId.value]"
+            "value": "[reference('hubVnet').outputs.firewallSubnetId.value]"
           },
           "logAnalyticsWorkspaceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+            "value": "[reference('logAnalytics').outputs.workspaceId.value]"
           },
           "spokeSubnetPrefixes": {
             "copy": [
@@ -1226,12 +1227,12 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "hubVnet",
+        "logAnalytics",
+        "rg"
       ]
     },
-    {
+    "domainController": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "deploy-dc",
@@ -1249,7 +1250,7 @@
             "value": "[parameters('prefix')]"
           },
           "subnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.adSubnetId.value]"
+            "value": "[reference('hubVnet').outputs.adSubnetId.value]"
           },
           "adminUsername": {
             "value": "[parameters('adminUsername')]"
@@ -1451,11 +1452,11 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "hubVnet",
+        "rg"
       ]
     },
-    {
+    "spokeVnets": {
       "copy": {
         "name": "spokeVnets",
         "count": "[length(parameters('spokes'))]"
@@ -1486,14 +1487,14 @@
             "value": "[parameters('spokes')[copyIndex()].sessionHostSubnetPrefix]"
           },
           "hubVnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.hubVnetId.value]"
+            "value": "[reference('hubVnet').outputs.hubVnetId.value]"
           },
           "firewallPrivateIp": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-firewall'), '2025-04-01').outputs.firewallPrivateIp.value]"
+            "value": "[reference('firewall').outputs.firewallPrivateIp.value]"
           },
           "dnsServers": {
             "value": [
-              "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-dc'), '2025-04-01').outputs.adVmPrivateIp.value]"
+              "[reference('domainController').outputs.adVmPrivateIp.value]"
             ]
           },
           "tags": {
@@ -1696,13 +1697,13 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-dc')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-firewall')]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "domainController",
+        "firewall",
+        "hubVnet",
+        "rg"
       ]
     },
-    {
+    "hubToSpokePeerings": {
       "copy": {
         "name": "hubToSpokePeerings",
         "count": "[length(parameters('spokes'))]"
@@ -1718,10 +1719,10 @@
         "mode": "Incremental",
         "parameters": {
           "hubVnetName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.hubVnetName.value]"
+            "value": "[reference('hubVnet').outputs.hubVnetName.value]"
           },
           "spokeVnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.spokeVnetId.value]"
+            "value": "[reference(format('spokeVnets[{0}]', copyIndex())).outputs.spokeVnetId.value]"
           },
           "spokeName": {
             "value": "[parameters('spokes')[copyIndex()].name]"
@@ -1776,12 +1777,12 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
+        "hubVnet",
+        "rg",
+        "[format('spokeVnets[{0}]', copyIndex())]"
       ]
     },
-    {
+    "fslogixStorage": {
       "copy": {
         "name": "fslogixStorage",
         "count": "[length(parameters('spokes'))]"
@@ -1806,10 +1807,10 @@
             "value": "[parameters('spokes')[copyIndex()].name]"
           },
           "subnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.sessionHostSubnetId.value]"
+            "value": "[reference(format('spokeVnets[{0}]', copyIndex())).outputs.sessionHostSubnetId.value]"
           },
           "vnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.spokeVnetId.value]"
+            "value": "[reference(format('spokeVnets[{0}]', copyIndex())).outputs.spokeVnetId.value]"
           },
           "shareQuotaGB": {
             "value": "[parameters('fslogixShareQuotaGB')]"
@@ -2015,13 +2016,13 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-hub-to-{0}-peering', parameters('spokes')[copyIndex()].name))]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
+        "[format('hubToSpokePeerings[{0}]', copyIndex())]",
+        "rg",
+        "[format('spokeVnets[{0}]', copyIndex())]",
+        "[format('spokeVnets[{0}]', copyIndex())]"
       ]
     },
-    {
+    "avdHostPools": {
       "copy": {
         "name": "avdHostPools",
         "count": "[length(parameters('spokes'))]"
@@ -2046,7 +2047,7 @@
             "value": "[parameters('spokes')[copyIndex()].name]"
           },
           "logAnalyticsWorkspaceId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+            "value": "[reference('logAnalytics').outputs.workspaceId.value]"
           },
           "hostPoolType": {
             "value": "[parameters('spokes')[copyIndex()].hostPoolType]"
@@ -2060,12 +2061,13 @@
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
           "contentVersion": "1.0.0.0",
           "metadata": {
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "5186881309027094731"
+              "templateHash": "4873131901525187630"
             }
           },
           "parameters": {
@@ -2155,8 +2157,8 @@
               }
             }
           },
-          "resources": [
-            {
+          "resources": {
+            "hostPool": {
               "type": "Microsoft.DesktopVirtualization/hostPools",
               "apiVersion": "2024-04-08-preview",
               "name": "[format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName'))]",
@@ -2177,7 +2179,7 @@
                 }
               }
             },
-            {
+            "appGroup": {
               "type": "Microsoft.DesktopVirtualization/applicationGroups",
               "apiVersion": "2024-04-08-preview",
               "name": "[format('{0}-{1}-dag', parameters('prefix'), parameters('spokeName'))]",
@@ -2189,10 +2191,10 @@
                 "friendlyName": "[format('{0} {1} デスクトップ', parameters('prefix'), parameters('spokeName'))]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]"
+                "hostPool"
               ]
             },
-            {
+            "workspace": {
               "type": "Microsoft.DesktopVirtualization/workspaces",
               "apiVersion": "2024-04-08-preview",
               "name": "[format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName'))]",
@@ -2205,10 +2207,10 @@
                 ]
               },
               "dependsOn": [
-                "[resourceId('Microsoft.DesktopVirtualization/applicationGroups', format('{0}-{1}-dag', parameters('prefix'), parameters('spokeName')))]"
+                "appGroup"
               ]
             },
-            {
+            "hostPoolDiag": {
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
               "scope": "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]",
@@ -2223,10 +2225,10 @@
                 ]
               },
               "dependsOn": [
-                "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]"
+                "hostPool"
               ]
             },
-            {
+            "workspaceDiag": {
               "type": "Microsoft.Insights/diagnosticSettings",
               "apiVersion": "2021-05-01-preview",
               "scope": "[resourceId('Microsoft.DesktopVirtualization/workspaces', format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName')))]",
@@ -2241,10 +2243,10 @@
                 ]
               },
               "dependsOn": [
-                "[resourceId('Microsoft.DesktopVirtualization/workspaces', format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName')))]"
+                "workspace"
               ]
             }
-          ],
+          },
           "outputs": {
             "hostPoolId": {
               "type": "string",
@@ -2255,8 +2257,8 @@
               "value": "[format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName'))]"
             },
             "hostPoolRegistrationToken": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName'))), '2024-04-08-preview').registrationInfo.token]"
+              "type": "securestring",
+              "value": "[listRegistrationTokens('hostPool', '2024-04-08-preview').value[0].token]"
             },
             "appGroupId": {
               "type": "string",
@@ -2270,11 +2272,11 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "logAnalytics",
+        "rg"
       ]
     },
-    {
+    "sessionHosts": {
       "copy": {
         "name": "sessionHosts",
         "count": "[length(parameters('spokes'))]"
@@ -2305,7 +2307,7 @@
             "value": "[parameters('spokes')[copyIndex()].sessionHostVmSize]"
           },
           "subnetId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.sessionHostSubnetId.value]"
+            "value": "[reference(format('spokeVnets[{0}]', copyIndex())).outputs.sessionHostSubnetId.value]"
           },
           "adminUsername": {
             "value": "[parameters('adminUsername')]"
@@ -2323,19 +2325,19 @@
             "value": "[parameters('domainJoinPassword')]"
           },
           "hostPoolName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolName.value]"
+            "value": "[reference(format('avdHostPools[{0}]', copyIndex())).outputs.hostPoolName.value]"
           },
           "hostPoolRegistrationToken": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolRegistrationToken.value]"
+            "value": "[listOutputsWithSecureValues(format('avdHostPools[{0}]', copyIndex()), '2025-04-01').hostPoolRegistrationToken]"
           },
           "hostPoolType": {
             "value": "[parameters('spokes')[copyIndex()].hostPoolType]"
           },
           "fslogixProfileSharePath": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.profileSharePath.value]"
+            "value": "[reference(format('fslogixStorage[{0}]', copyIndex())).outputs.profileSharePath.value]"
           },
           "dcrId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.dcrId.value]"
+            "value": "[reference('logAnalytics').outputs.dcrId.value]"
           },
           "autoShutdownTime": {
             "value": "[parameters('autoShutdownTime')]"
@@ -2769,16 +2771,16 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-hub-to-{0}-peering', parameters('spokes')[copyIndex()].name))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics')]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
+        "[format('avdHostPools[{0}]', copyIndex())]",
+        "[format('avdHostPools[{0}]', copyIndex())]",
+        "[format('fslogixStorage[{0}]', copyIndex())]",
+        "[format('hubToSpokePeerings[{0}]', copyIndex())]",
+        "logAnalytics",
+        "rg",
+        "[format('spokeVnets[{0}]', copyIndex())]"
       ]
     },
-    {
+    "scalingPlans": {
       "copy": {
         "name": "scalingPlans",
         "count": "[length(parameters('spokes'))]"
@@ -2803,7 +2805,7 @@
             "value": "[parameters('spokes')[copyIndex()].name]"
           },
           "hostPoolId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolId.value]"
+            "value": "[reference(format('avdHostPools[{0}]', copyIndex())).outputs.hostPoolId.value]"
           },
           "hostPoolType": {
             "value": "[parameters('spokes')[copyIndex()].hostPoolType]"
@@ -3031,11 +3033,11 @@
         }
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+        "[format('avdHostPools[{0}]', copyIndex())]",
+        "rg"
       ]
     }
-  ],
+  },
   "outputs": {
     "resourceGroupName": {
       "type": "string",
@@ -3043,40 +3045,40 @@
     },
     "hubVnetId": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.hubVnetId.value]"
+      "value": "[reference('hubVnet').outputs.hubVnetId.value]"
     },
     "firewallPrivateIp": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-firewall'), '2025-04-01').outputs.firewallPrivateIp.value]"
+      "value": "[reference('firewall').outputs.firewallPrivateIp.value]"
     },
     "adVmPrivateIp": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-dc'), '2025-04-01').outputs.adVmPrivateIp.value]"
+      "value": "[reference('domainController').outputs.adVmPrivateIp.value]"
     },
     "spokeVnetIds": {
       "type": "array",
       "copy": {
         "count": "[length(parameters('spokes'))]",
-        "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.spokeVnetId.value]"
+        "input": "[reference(format('spokeVnets[{0}]', copyIndex())).outputs.spokeVnetId.value]"
       }
     },
     "hostPoolNames": {
       "type": "array",
       "copy": {
         "count": "[length(parameters('spokes'))]",
-        "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolName.value]"
+        "input": "[reference(format('avdHostPools[{0}]', copyIndex())).outputs.hostPoolName.value]"
       }
     },
     "fslogixSharePaths": {
       "type": "array",
       "copy": {
         "count": "[length(parameters('spokes'))]",
-        "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-fslogix-storage', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.profileSharePath.value]"
+        "input": "[reference(format('fslogixStorage[{0}]', copyIndex())).outputs.profileSharePath.value]"
       }
     },
     "logAnalyticsWorkspaceId": {
       "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+      "value": "[reference('logAnalytics').outputs.workspaceId.value]"
     }
   }
 }

@@ -18,7 +18,11 @@ Write-Host " HOK AVD 環境デプロイ (複数 Spoke 対応)" -ForegroundColor 
 Write-Host "==========================================" -ForegroundColor Cyan
 
 # --- パラメータ入力 ---
-$AdminUsername = Read-Host "管理者ユーザー名"
+$AdminUsername = Read-Host "管理者ユーザー名 (20文字以内, @不可, 例: azureadmin)"
+if ($AdminUsername.Length -gt 20 -or $AdminUsername -match '[@\\\/\"\[\]:|\<\>+=;,\?\*]') {
+    Write-Host "エラー: 管理者ユーザー名は20文字以内で、@等の特殊文字は使用できません。" -ForegroundColor Red
+    exit 1
+}
 $AdminPassword = Read-Host "管理者パスワード" -AsSecureString
 $AdminPasswordPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($AdminPassword))
 
