@@ -53,7 +53,7 @@ param fslogixShareQuotaGB = 100
 param alertEmailAddress = '' // ← アラート通知先メール (空=アクションなし)
 
 // --- スケジュール設定 (VM 起動・停止) ---
-param peakStartHour = 8     // ← ピーク (業務) 開始時刻: 8:00
+param peakStartHour = 8 // ← ピーク (業務) 開始時刻: 8:00
 param peakStartMinute = 0
 param offPeakStartHour = 18 // ← オフピーク (停止) 開始時刻: 18:00
 param offPeakStartMinute = 0

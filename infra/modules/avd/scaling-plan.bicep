@@ -116,61 +116,60 @@ resource scalingPlan 'Microsoft.DesktopVirtualization/scalingPlans@2024-04-08-pr
 
 // ======================== Personal スケジュール (子リソース) ========================
 
-resource personalWeekdaySchedule 'Microsoft.DesktopVirtualization/scalingPlans/personalSchedules@2024-04-08-preview' =
-  if (hostPoolType == 'Personal') {
-    parent: scalingPlan
-    name: 'weekday-schedule'
-    properties: {
-      daysOfWeek: [
-        'Monday'
-        'Tuesday'
-        'Wednesday'
-        'Thursday'
-        'Friday'
-      ]
-      // ランプアップ: VM を事前起動
-      rampUpStartTime: {
-        hour: rampUpStartHour
-        minute: rampUpStartMinute
-      }
-      rampUpAutoStartHosts: 'All'
-      rampUpStartVMOnConnect: 'Enable'
-      rampUpActionOnDisconnect: 'None'
-      rampUpMinutesToWaitOnDisconnect: 0
-      rampUpActionOnLogoff: 'None'
-      rampUpMinutesToWaitOnLogoff: 0
-      // ピーク: 通常業務時間
-      peakStartTime: {
-        hour: peakStartHour
-        minute: peakStartMinute
-      }
-      peakStartVMOnConnect: 'Enable'
-      peakActionOnDisconnect: 'None'
-      peakMinutesToWaitOnDisconnect: 0
-      peakActionOnLogoff: 'None'
-      peakMinutesToWaitOnLogoff: 0
-      // ランプダウン: 切断/ログオフ時に自動停止
-      rampDownStartTime: {
-        hour: rampDownStartHour
-        minute: rampDownStartMinute
-      }
-      rampDownStartVMOnConnect: 'Enable'
-      rampDownActionOnDisconnect: 'Deallocate'
-      rampDownMinutesToWaitOnDisconnect: 30
-      rampDownActionOnLogoff: 'Deallocate'
-      rampDownMinutesToWaitOnLogoff: 30
-      // オフピーク: 即座に停止
-      offPeakStartTime: {
-        hour: offPeakStartHour
-        minute: offPeakStartMinute
-      }
-      offPeakStartVMOnConnect: 'Enable'
-      offPeakActionOnDisconnect: 'Deallocate'
-      offPeakMinutesToWaitOnDisconnect: 5
-      offPeakActionOnLogoff: 'Deallocate'
-      offPeakMinutesToWaitOnLogoff: 5
+resource personalWeekdaySchedule 'Microsoft.DesktopVirtualization/scalingPlans/personalSchedules@2024-04-08-preview' = if (hostPoolType == 'Personal') {
+  parent: scalingPlan
+  name: 'weekday-schedule'
+  properties: {
+    daysOfWeek: [
+      'Monday'
+      'Tuesday'
+      'Wednesday'
+      'Thursday'
+      'Friday'
+    ]
+    // ランプアップ: VM を事前起動
+    rampUpStartTime: {
+      hour: rampUpStartHour
+      minute: rampUpStartMinute
     }
+    rampUpAutoStartHosts: 'All'
+    rampUpStartVMOnConnect: 'Enable'
+    rampUpActionOnDisconnect: 'None'
+    rampUpMinutesToWaitOnDisconnect: 0
+    rampUpActionOnLogoff: 'None'
+    rampUpMinutesToWaitOnLogoff: 0
+    // ピーク: 通常業務時間
+    peakStartTime: {
+      hour: peakStartHour
+      minute: peakStartMinute
+    }
+    peakStartVMOnConnect: 'Enable'
+    peakActionOnDisconnect: 'None'
+    peakMinutesToWaitOnDisconnect: 0
+    peakActionOnLogoff: 'None'
+    peakMinutesToWaitOnLogoff: 0
+    // ランプダウン: 切断/ログオフ時に自動停止
+    rampDownStartTime: {
+      hour: rampDownStartHour
+      minute: rampDownStartMinute
+    }
+    rampDownStartVMOnConnect: 'Enable'
+    rampDownActionOnDisconnect: 'Deallocate'
+    rampDownMinutesToWaitOnDisconnect: 30
+    rampDownActionOnLogoff: 'Deallocate'
+    rampDownMinutesToWaitOnLogoff: 30
+    // オフピーク: 即座に停止
+    offPeakStartTime: {
+      hour: offPeakStartHour
+      minute: offPeakStartMinute
+    }
+    offPeakStartVMOnConnect: 'Enable'
+    offPeakActionOnDisconnect: 'Deallocate'
+    offPeakMinutesToWaitOnDisconnect: 5
+    offPeakActionOnLogoff: 'Deallocate'
+    offPeakMinutesToWaitOnLogoff: 5
   }
+}
 
 // ======================== Outputs ========================
 
