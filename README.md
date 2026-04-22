@@ -54,6 +54,8 @@
 | **AVD Host Pool - Personal (シングルセッション)** | 1ユーザー1VM 専用割り当て、Win11 Enterprise                                           |
 | **FSLogix Profile Container**                     | Azure Files Premium + プライベートエンドポイント、プロファイル外出し                  |
 | **AVD Insights 監視基盤**                         | DCR + AMA + Workbook + アラート (Session Host障害, 入力遅延, FSLogix, 接続エラー)     |
+| **AVD Scaling Plan**                              | 平日 8:00 自動起動 / 18:00 自動停止、ランプアップ・ランプダウン制御                   |
+| **Auto-Shutdown (DevTestLab)**                    | 18:00 JST 強制シャットダウン (セーフティネット)                                        |
 | **Log Analytics**                                 | Firewall / Host Pool / Workspace の診断ログ + パフォーマンスカウンター + イベントログ |
 
 ## フォルダ構成
@@ -67,7 +69,8 @@ infra/
     │   └── domain-controller.bicep           # AD DC VM + AD DS インストール
     ├── avd/
     │   ├── host-pool.bicep                   # Host Pool (Pooled/Personal), App Group, Workspace
-    │   └── session-host.bicep                # Session Host VM + ドメイン参加 + AVD Agent + FSLogix + AMA
+    │   ├── scaling-plan.bicep                # AVD Scaling Plan (スケジュール起動/停止)
+    │   └── session-host.bicep                # Session Host VM + ドメイン参加 + AVD Agent + FSLogix + AMA + Auto-Shutdown
     ├── monitoring/
     │   ├── log-analytics.bicep               # Log Analytics + DCR + Workbook + アラート
     │   └── avd-insights-workbook.json        # AVD Insights Workbook テンプレート
@@ -144,6 +147,60 @@ AVD の監視は「難しい」と言われがちですが、本環境では **A
 | **シングルセッション (Personal)** | Win11 Enterprise                           | Persistent   | パフォーマンス重視、開発者向け   |
 
 `spokes` パラメータの `hostPoolType` で Spoke ごとに指定できます。
+
+## スケジュール起動 / 停止
+
+**平日 8:00 に自動起動、18:00 に自動停止** する設定が組み込まれています。
+
+### 仕組み (2重構成)
+
+| メカニズム | 役割 | 動作 |
+|---|---|---|
+| **AVD Scaling Plan** | メイン制御 | 7:30 ランプアップ → 8:00 ピーク → 17:30 ランプダウン (30分前通知) → 18:00 オフピーク |
+| **Auto-Shutdown (DevTestLab)** | セーフティネット | 毎日 18:00 JST に強制シャットダウン (15分前通知) |
+
+### Pooled ホストプールの場合
+
+| 時間帯 | 動作 |
+|---|---|
+| 7:30 - 8:00 (ランプアップ) | 全 Session Host を起動、BreadthFirst 負荷分散 |
+| 8:00 - 17:30 (ピーク) | 全台稼働、BreadthFirst |
+| 17:30 - 18:00 (ランプダウン) | 30分前にログオフ通知、セッション 0 の VM を停止 |
+| 18:00 - 7:30 (オフピーク) | 全 VM 停止、StartVMOnConnect で必要時のみ起動 |
+
+### Personal ホストプールの場合
+
+| 時間帯 | 動作 |
+|---|---|
+| 7:30 - 8:00 (ランプアップ) | 全 VM を自動起動 |
+| 8:00 - 17:30 (ピーク) | StartVMOnConnect 有効 |
+| 17:30 - 18:00 (ランプダウン) | 切断/ログオフ 30分後に自動停止 |
+| 18:00 - 7:30 (オフピーク) | 切断/ログオフ 5分後に即停止 |
+
+### 必要な権限設定 (デプロイ後)
+
+Scaling Plan が VM を起動/停止するには、`Azure Virtual Desktop` サービスプリンシパルに `Desktop Virtualization Power On Off Contributor` ロールを割り当てる必要があります:
+
+```powershell
+# Azure Virtual Desktop サービスプリンシパルの Object ID を取得
+$spObjectId = (Get-AzADServicePrincipal -ApplicationId '9cdead84-a844-4324-93f2-b2e6bb768d07').Id
+
+# サブスクリプションレベルでロールを割り当て
+New-AzRoleAssignment `
+  -ObjectId $spObjectId `
+  -RoleDefinitionName 'Desktop Virtualization Power On Off Contributor' `
+  -Scope "/subscriptions/$(Get-AzContext | Select-Object -ExpandProperty Subscription | Select-Object -ExpandProperty Id)"
+```
+
+### スケジュールのカスタマイズ
+
+`main.bicepparam` で起動・停止時刻を変更できます:
+
+```bicep
+param peakStartHour = 9       // ピーク開始を 9:00 に変更
+param offPeakStartHour = 19   // 停止を 19:00 に変更
+param autoShutdownTime = '1900' // セーフティネットも合わせて変更
+```
 
 ## 前提条件
 
@@ -222,9 +279,10 @@ az deployment sub create \
 2. **ドメインユーザー作成** - Bastion 経由で DC にログインし、AVD 用ユーザーを作成
 3. **ストレージアカウントの AD 参加** - `Join-AzStorageAccount` で FSLogix ストレージを AD に参加
 4. **NTFS 権限設定** - ファイル共有をマウントし、ユーザーごとの NTFS アクセス許可を設定
-5. **Application Group へのユーザー割り当て** - Azure Portal > AVD > 各 Spoke の Application Group から割り当て
-6. **接続テスト** - [Windows デスクトップクライアント](https://aka.ms/avdclient) または [Web クライアント](https://client.wvd.microsoft.com/arm/webclient/index.html) で接続
-7. **監視確認** - Azure Portal > Log Analytics Workspace > AVD Insights Workbook でダッシュボードを確認
+5. **Scaling Plan の権限設定** - `Azure Virtual Desktop` サービスプリンシパルに `Desktop Virtualization Power On Off Contributor` ロールを割り当て (上記「スケジュール起動/停止」セクション参照)
+6. **Application Group へのユーザー割り当て** - Azure Portal > AVD > 各 Spoke の Application Group から割り当て
+7. **接続テスト** - [Windows デスクトップクライアント](https://aka.ms/avdclient) または [Web クライアント](https://client.wvd.microsoft.com/arm/webclient/index.html) で接続
+8. **監視確認** - Azure Portal > Log Analytics Workspace > AVD Insights Workbook でダッシュボードを確認
 
 ## カスタマイズ
 
@@ -237,6 +295,9 @@ az deployment sub create \
 | `domainName`          | `hok.local`  | AD ドメイン名                           |
 | `fslogixShareQuotaGB` | `100`        | FSLogix プロファイル共有のクォータ (GB) |
 | `alertEmailAddress`   | (空)         | アラート通知先メールアドレス            |
+| `peakStartHour`       | `8`          | 業務開始 (VM 起動完了) 時刻 (時)       |
+| `offPeakStartHour`    | `18`         | 業務終了 (VM 停止) 時刻 (時)           |
+| `autoShutdownTime`    | `1800`       | 自動シャットダウン (HHmm, JST)         |
 
 ### Spoke 定義 (`spokes` パラメータ)
 
@@ -280,4 +341,6 @@ param spokes = [
 - Log Analytics (データ量に依存): 約 ¥5,000-15,000/月
 
 > 合計約 ¥430,000-¥440,000/月程度 (リージョン・為替により変動)
-> デモ利用時は使い終わったら VM を停止してコストを削減してください。
+>
+> **Scaling Plan + Auto-Shutdown により、平日 8:00-18:00 のみ稼働する設定が有効です。**
+> 10時間/日 × 22日/月 の稼働であれば、Session Host のコストは約 3分の1 まで削減されます。

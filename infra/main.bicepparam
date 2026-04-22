@@ -52,5 +52,12 @@ param fslogixShareQuotaGB = 100
 // --- 監視設定 ---
 param alertEmailAddress = '' // ← アラート通知先メール (空=アクションなし)
 
+// --- スケジュール設定 (VM 起動・停止) ---
+param peakStartHour = 8     // ← ピーク (業務) 開始時刻: 8:00
+param peakStartMinute = 0
+param offPeakStartHour = 18 // ← オフピーク (停止) 開始時刻: 18:00
+param offPeakStartMinute = 0
+param autoShutdownTime = '1800' // ← 自動シャットダウン 18:00 JST (セーフティネット)
+
 // --- ホストプール登録トークン有効期限 (デプロイ日から 24h 後を設定) ---
 param tokenExpirationTime = '' // ← 例: 2026-04-23T12:00:00Z

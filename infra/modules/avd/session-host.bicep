@@ -60,6 +60,12 @@ param fslogixProfileSharePath string = ''
 @description('DCR (Data Collection Rule) の ID')
 param dcrId string = ''
 
+@description('自動シャットダウン時刻 (HHmm 形式, 例: 1800 = 18:00)')
+param autoShutdownTime string = '1800'
+
+@description('自動シャットダウンのタイムゾーン')
+param autoShutdownTimeZone string = 'Tokyo Standard Time'
+
 @description('タグ')
 param tags object = {}
 
@@ -274,6 +280,29 @@ resource dcrAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2023-
     dependsOn: [
       amaExtension[i]
     ]
+  }
+]
+
+// --- 自動シャットダウン (DevTestLab / セーフティネット) ---
+resource autoShutdown 'Microsoft.DevTestLab/schedules@2018-09-15' = [
+  for i in range(0, sessionHostCount): {
+    name: 'shutdown-computevm-${sessionHostVm[i].name}'
+    location: location
+    tags: tags
+    properties: {
+      status: 'Enabled'
+      taskType: 'ComputeVmShutdownTask'
+      dailyRecurrence: {
+        time: autoShutdownTime
+      }
+      timeZoneId: autoShutdownTimeZone
+      targetResourceId: sessionHostVm[i].id
+      notificationSettings: {
+        status: 'Enabled'
+        timeInMinutes: 15
+        notificationLocale: 'ja'
+      }
+    }
   }
 ]
 

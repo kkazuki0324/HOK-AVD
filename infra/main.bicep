@@ -77,6 +77,21 @@ param fslogixShareQuotaGB int = 100
 @description('アラート通知先メールアドレス (空の場合はアラートアクションなし)')
 param alertEmailAddress string = ''
 
+@description('スケーリングプラン: ピーク開始時刻 (時)')
+param peakStartHour int = 8
+
+@description('スケーリングプラン: ピーク開始時刻 (分)')
+param peakStartMinute int = 0
+
+@description('スケーリングプラン: オフピーク開始時刻 (時)')
+param offPeakStartHour int = 18
+
+@description('スケーリングプラン: オフピーク開始時刻 (分)')
+param offPeakStartMinute int = 0
+
+@description('自動シャットダウン時刻 (HHmm 形式, セーフティネット)')
+param autoShutdownTime string = '1800'
+
 @description('タグ')
 param tags object = {
   environment: 'demo'
@@ -246,11 +261,33 @@ module sessionHosts 'modules/avd/session-host.bicep' = [
       hostPoolType: spoke.hostPoolType
       fslogixProfileSharePath: fslogixStorage[i].outputs.profileSharePath
       dcrId: logAnalytics.outputs.dcrId
+      autoShutdownTime: autoShutdownTime
       tags: tags
     }
     dependsOn: [
       hubToSpokePeerings[i]
     ]
+  }
+]
+
+// ======================== AVD Scaling Plan (Spoke ごと) ========================
+
+module scalingPlans 'modules/avd/scaling-plan.bicep' = [
+  for (spoke, i) in spokes: {
+    name: 'deploy-${spoke.name}-scaling-plan'
+    scope: rg
+    params: {
+      location: location
+      prefix: prefix
+      spokeName: spoke.name
+      hostPoolId: avdHostPools[i].outputs.hostPoolId
+      hostPoolType: spoke.hostPoolType
+      peakStartHour: peakStartHour
+      peakStartMinute: peakStartMinute
+      offPeakStartHour: offPeakStartHour
+      offPeakStartMinute: offPeakStartMinute
+      tags: tags
+    }
   }
 ]
 
