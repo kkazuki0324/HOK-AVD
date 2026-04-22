@@ -18,7 +18,7 @@ param spokeName string
 param sessionHostCount int = 2
 
 @description('Session Host の VM サイズ')
-param vmSize string = 'Standard_D4s_v3'
+param vmSize string = 'Standard_D4as_v7'
 
 @description('Session Host サブネット ID')
 param subnetId string

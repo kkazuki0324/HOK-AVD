@@ -310,7 +310,7 @@ param spokes = [
     vnetAddressPrefix: '10.1.0.0/16'        // VNet アドレス空間
     sessionHostSubnetPrefix: '10.1.0.0/24'  // Session Host サブネット
     sessionHostCount: 2                      // Session Host 台数
-    sessionHostVmSize: 'Standard_D4s_v3'    // VM サイズ
+    sessionHostVmSize: 'Standard_D4as_v7'    // VM サイズ
     hostPoolType: 'Pooled'                   // 'Pooled' (マルチ) or 'Personal' (シングル)
   }
 ]
