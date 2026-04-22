@@ -1,0 +1,2083 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.42.1.51946",
+      "templateHash": "15473928137575496733"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "japaneast",
+      "metadata": {
+        "description": "デプロイ先リージョン"
+      }
+    },
+    "prefix": {
+      "type": "string",
+      "defaultValue": "hok-avd",
+      "metadata": {
+        "description": "リソース名プレフィックス"
+      }
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "defaultValue": "[format('{0}-rg', parameters('prefix'))]",
+      "metadata": {
+        "description": "リソースグループ名"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "管理者ユーザー名"
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "管理者パスワード"
+      }
+    },
+    "domainName": {
+      "type": "string",
+      "defaultValue": "hok.local",
+      "metadata": {
+        "description": "AD ドメイン名"
+      }
+    },
+    "domainJoinUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "ドメイン参加用ユーザー名 (UPN形式: user@domain)"
+      }
+    },
+    "domainJoinPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "ドメイン参加用パスワード"
+      }
+    },
+    "spokes": {
+      "type": "array",
+      "defaultValue": [
+        {
+          "name": "spoke01",
+          "vnetAddressPrefix": "10.1.0.0/16",
+          "sessionHostSubnetPrefix": "10.1.0.0/24",
+          "sessionHostCount": 2,
+          "sessionHostVmSize": "Standard_D4s_v5"
+        },
+        {
+          "name": "spoke02",
+          "vnetAddressPrefix": "10.2.0.0/16",
+          "sessionHostSubnetPrefix": "10.2.0.0/24",
+          "sessionHostCount": 2,
+          "sessionHostVmSize": "Standard_D4s_v5"
+        },
+        {
+          "name": "spoke03",
+          "vnetAddressPrefix": "10.3.0.0/16",
+          "sessionHostSubnetPrefix": "10.3.0.0/24",
+          "sessionHostCount": 2,
+          "sessionHostVmSize": "Standard_D4s_v5"
+        }
+      ],
+      "metadata": {
+        "description": "Spoke 定義の配列"
+      }
+    },
+    "tokenExpirationTime": {
+      "type": "string",
+      "metadata": {
+        "description": "ホストプール登録トークンの有効期限 (ISO 8601)"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+        "environment": "demo",
+        "project": "HOK-AVD",
+        "managedBy": "Bicep"
+      },
+      "metadata": {
+        "description": "タグ"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-log-analytics",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "7264730004744502603"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "metadata": {
+                "description": "データ保持期間 (日)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2023-09-01",
+              "name": "[format('{0}-law', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]",
+                "features": {
+                  "enableLogAccessUsingOnlyResourcePermissions": true
+                },
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.OperationsManagement/solutions",
+              "apiVersion": "2015-11-01-preview",
+              "name": "[format('WindowsEventForwarding({0})', format('{0}-law', parameters('prefix')))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "plan": {
+                "name": "[format('WindowsEventForwarding({0})', format('{0}-law', parameters('prefix')))]",
+                "publisher": "Microsoft",
+                "product": "OMSGallery/WindowsEventForwarding",
+                "promotionCode": ""
+              },
+              "properties": {
+                "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "workspaceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('{0}-law', parameters('prefix')))]"
+            },
+            "workspaceName": {
+              "type": "string",
+              "value": "[format('{0}-law', parameters('prefix'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-hub-vnet",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "14386200117273482010"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "vnetAddressPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.0.0/16",
+              "metadata": {
+                "description": "Hub VNet のアドレス空間"
+              }
+            },
+            "firewallSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.1.0/26",
+              "metadata": {
+                "description": "Azure Firewall サブネットのアドレスプレフィックス"
+              }
+            },
+            "adSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.2.0/24",
+              "metadata": {
+                "description": "AD サブネットのアドレスプレフィックス"
+              }
+            },
+            "bastionSubnetPrefix": {
+              "type": "string",
+              "defaultValue": "10.0.3.0/26",
+              "metadata": {
+                "description": "Azure Bastion サブネットのアドレスプレフィックス"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-nsg-ad', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowRDP",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[parameters('bastionSubnetPrefix')]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "3389"
+                    }
+                  },
+                  {
+                    "name": "AllowAD-TCP",
+                    "properties": {
+                      "priority": 200,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRanges": [
+                        "53",
+                        "88",
+                        "135",
+                        "389",
+                        "445",
+                        "464",
+                        "636",
+                        "3268",
+                        "3269",
+                        "49152-65535"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "AllowAD-UDP",
+                    "properties": {
+                      "priority": 210,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Udp",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRanges": [
+                        "53",
+                        "88",
+                        "123",
+                        "389",
+                        "464"
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-vnet-hub', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[parameters('vnetAddressPrefix')]"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "AzureFirewallSubnet",
+                    "properties": {
+                      "addressPrefix": "[parameters('firewallSubnetPrefix')]"
+                    }
+                  },
+                  {
+                    "name": "snet-ad",
+                    "properties": {
+                      "addressPrefix": "[parameters('adSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg-ad', parameters('prefix')))]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "AzureBastionSubnet",
+                    "properties": {
+                      "addressPrefix": "[parameters('bastionSubnetPrefix')]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg-ad', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-pip-bastion', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static"
+              }
+            },
+            {
+              "type": "Microsoft.Network/bastionHosts",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-bastion', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "bastionIpConfig",
+                    "properties": {
+                      "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip-bastion', parameters('prefix')))]"
+                      },
+                      "subnet": {
+                        "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-hub', parameters('prefix'))), '2024-05-01').subnets[2].id]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip-bastion', parameters('prefix')))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-hub', parameters('prefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "hubVnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-hub', parameters('prefix')))]"
+            },
+            "hubVnetName": {
+              "type": "string",
+              "value": "[format('{0}-vnet-hub', parameters('prefix'))]"
+            },
+            "firewallSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-hub', parameters('prefix'))), '2024-05-01').subnets[0].id]"
+            },
+            "adSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-hub', parameters('prefix'))), '2024-05-01').subnets[1].id]"
+            },
+            "bastionSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-hub', parameters('prefix'))), '2024-05-01').subnets[2].id]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-firewall",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "firewallSubnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.firewallSubnetId.value]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "spokeSubnetPrefixes": {
+            "copy": [
+              {
+                "name": "value",
+                "count": "[length(parameters('spokes'))]",
+                "input": "[parameters('spokes')[copyIndex('value')].sessionHostSubnetPrefix]"
+              }
+            ]
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "15359639505637433715"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "firewallSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure Firewall サブネット ID"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace ID"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            },
+            "spokeSubnetPrefixes": {
+              "type": "array",
+              "metadata": {
+                "description": "全 Spoke のセッションホストサブネットアドレス一覧 (Firewall ルール用)"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-pip-fw', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static"
+              }
+            },
+            {
+              "type": "Microsoft.Network/firewallPolicies",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-fw-policy', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "tier": "Standard"
+                },
+                "threatIntelMode": "Alert",
+                "dnsSettings": {
+                  "enableProxy": true
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Network/firewallPolicies/ruleCollectionGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('{0}-fw-policy', parameters('prefix')), 'avd-rules')]",
+              "properties": {
+                "priority": 100,
+                "ruleCollections": [
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "avd-required-fqdns",
+                    "priority": 100,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "AVD-Service",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "*.wvd.microsoft.com",
+                          "*.servicebus.windows.net",
+                          "*.prod.warm.ingest.monitor.core.windows.net"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      },
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "AVD-Authentication",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "login.microsoftonline.com",
+                          "login.windows.net",
+                          "*.identity.azure.net",
+                          "*.login.microsoftonline.com"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      },
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "AVD-Agent-Updates",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "*.blob.core.windows.net",
+                          "mrsglobalsteus2prod.blob.core.windows.net",
+                          "wvdportalstorageblob.blob.core.windows.net"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      },
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "Windows-Activation-KMS",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "kms.core.windows.net",
+                          "azkms.core.windows.net"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      },
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "Windows-Update",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          },
+                          {
+                            "protocolType": "Http",
+                            "port": 80
+                          }
+                        ],
+                        "targetFqdns": [
+                          "*.update.microsoft.com",
+                          "*.windowsupdate.com",
+                          "*.download.windowsupdate.com",
+                          "ctldl.windowsupdate.com"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      },
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "Certificate-Validation",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          },
+                          {
+                            "protocolType": "Http",
+                            "port": 80
+                          }
+                        ],
+                        "targetFqdns": [
+                          "*.digicert.com",
+                          "*.verisign.com",
+                          "*.msocsp.com",
+                          "*.microsoft.com"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      },
+                      {
+                        "ruleType": "ApplicationRule",
+                        "name": "Microsoft365",
+                        "protocols": [
+                          {
+                            "protocolType": "Https",
+                            "port": 443
+                          }
+                        ],
+                        "targetFqdns": [
+                          "*.office365.com",
+                          "*.office.com",
+                          "*.microsoftonline.com",
+                          "*.microsoft.com",
+                          "*.live.com",
+                          "*.office.net",
+                          "*.onenote.com",
+                          "*.sharepoint.com",
+                          "*.teams.microsoft.com"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]"
+                      }
+                    ]
+                  },
+                  {
+                    "ruleCollectionType": "FirewallPolicyFilterRuleCollection",
+                    "name": "avd-network-rules",
+                    "priority": 200,
+                    "action": {
+                      "type": "Allow"
+                    },
+                    "rules": [
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "DNS",
+                        "ipProtocols": [
+                          "TCP",
+                          "UDP"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]",
+                        "destinationAddresses": [
+                          "10.0.2.0/24"
+                        ],
+                        "destinationPorts": [
+                          "53"
+                        ]
+                      },
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "KMS-Activation",
+                        "ipProtocols": [
+                          "TCP"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]",
+                        "destinationAddresses": [
+                          "23.102.135.246"
+                        ],
+                        "destinationPorts": [
+                          "1688"
+                        ]
+                      },
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "NTP",
+                        "ipProtocols": [
+                          "UDP"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]",
+                        "destinationAddresses": [
+                          "*"
+                        ],
+                        "destinationPorts": [
+                          "123"
+                        ]
+                      },
+                      {
+                        "ruleType": "NetworkRule",
+                        "name": "AD-Communication",
+                        "ipProtocols": [
+                          "TCP",
+                          "UDP"
+                        ],
+                        "sourceAddresses": "[parameters('spokeSubnetPrefixes')]",
+                        "destinationAddresses": [
+                          "10.0.2.0/24"
+                        ],
+                        "destinationPorts": [
+                          "53",
+                          "88",
+                          "123",
+                          "135",
+                          "389",
+                          "445",
+                          "464",
+                          "636",
+                          "3268",
+                          "3269",
+                          "49152-65535"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/firewallPolicies', format('{0}-fw-policy', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/azureFirewalls",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-fw', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "name": "AZFW_VNet",
+                  "tier": "Standard"
+                },
+                "firewallPolicy": {
+                  "id": "[resourceId('Microsoft.Network/firewallPolicies', format('{0}-fw-policy', parameters('prefix')))]"
+                },
+                "ipConfigurations": [
+                  {
+                    "name": "fw-ipconfig",
+                    "properties": {
+                      "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip-fw', parameters('prefix')))]"
+                      },
+                      "subnet": {
+                        "id": "[parameters('firewallSubnetId')]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', format('{0}-pip-fw', parameters('prefix')))]",
+                "[resourceId('Microsoft.Network/firewallPolicies', format('{0}-fw-policy', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.Network/azureFirewalls', format('{0}-fw', parameters('prefix')))]",
+              "name": "[format('{0}-fw-diag', parameters('prefix'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "categoryGroup": "allLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/azureFirewalls', format('{0}-fw', parameters('prefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "firewallPrivateIp": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/azureFirewalls', format('{0}-fw', parameters('prefix'))), '2024-05-01').ipConfigurations[0].properties.privateIPAddress]"
+            },
+            "firewallId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/azureFirewalls', format('{0}-fw', parameters('prefix')))]"
+            },
+            "firewallPolicyId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/firewallPolicies', format('{0}-fw-policy', parameters('prefix')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "deploy-dc",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "subnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.adSubnetId.value]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "domainName": {
+            "value": "[parameters('domainName')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "2991995070297758354"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "subnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "AD サブネット ID"
+              }
+            },
+            "vmSize": {
+              "type": "string",
+              "defaultValue": "Standard_B2ms",
+              "metadata": {
+                "description": "VM のサイズ"
+              }
+            },
+            "adminUsername": {
+              "type": "string",
+              "metadata": {
+                "description": "管理者ユーザー名"
+              }
+            },
+            "adminPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "管理者パスワード"
+              }
+            },
+            "domainName": {
+              "type": "string",
+              "metadata": {
+                "description": "AD ドメイン名"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkInterfaces",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-nic-dc01', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "ipconfig1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Static",
+                      "privateIPAddress": "10.0.2.4",
+                      "subnet": {
+                        "id": "[parameters('subnetId')]"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}-vm-dc01', parameters('prefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "hardwareProfile": {
+                  "vmSize": "[parameters('vmSize')]"
+                },
+                "osProfile": {
+                  "computerName": "DC01",
+                  "adminUsername": "[parameters('adminUsername')]",
+                  "adminPassword": "[parameters('adminPassword')]",
+                  "windowsConfiguration": {
+                    "provisionVMAgent": true,
+                    "enableAutomaticUpdates": true,
+                    "patchSettings": {
+                      "patchMode": "AutomaticByOS"
+                    },
+                    "timeZone": "Tokyo Standard Time"
+                  }
+                },
+                "storageProfile": {
+                  "imageReference": {
+                    "publisher": "MicrosoftWindowsServer",
+                    "offer": "WindowsServer",
+                    "sku": "2022-datacenter-azure-edition",
+                    "version": "latest"
+                  },
+                  "osDisk": {
+                    "name": "[format('{0}-osdisk-dc01', parameters('prefix'))]",
+                    "createOption": "FromImage",
+                    "managedDisk": {
+                      "storageAccountType": "Premium_LRS"
+                    },
+                    "diskSizeGB": 128
+                  },
+                  "dataDisks": [
+                    {
+                      "name": "[format('{0}-datadisk-dc01', parameters('prefix'))]",
+                      "diskSizeGB": 32,
+                      "lun": 0,
+                      "createOption": "Empty",
+                      "managedDisk": {
+                        "storageAccountType": "Premium_LRS"
+                      }
+                    }
+                  ]
+                },
+                "networkProfile": {
+                  "networkInterfaces": [
+                    {
+                      "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-dc01', parameters('prefix')))]"
+                    }
+                  ]
+                },
+                "diagnosticsProfile": {
+                  "bootDiagnostics": {
+                    "enabled": true
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-dc01', parameters('prefix')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}/{1}', format('{0}-vm-dc01', parameters('prefix')), 'InstallADDS')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "CustomScriptExtension",
+                "typeHandlerVersion": "1.10",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                  "commandToExecute": "powershell -ExecutionPolicy Unrestricted -File C:\\setup-adds.ps1"
+                },
+                "protectedSettings": {
+                  "commandToExecute": "[format('powershell -ExecutionPolicy Unrestricted -Command \"Get-Disk | Where-Object PartitionStyle -eq RAW | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -FileSystem NTFS -Confirm:$false; Install-WindowsFeature AD-Domain-Services -IncludeManagementTools; Import-Module ADDSDeployment; Install-ADDSForest -DomainName {0} -DomainNetbiosName {1} -SafeModeAdministratorPassword (ConvertTo-SecureString ''{2}'' -AsPlainText -Force) -DatabasePath F:\\NTDS -LogPath F:\\NTDS -SysvolPath F:\\SYSVOL -InstallDns:$true -Force:$true -NoRebootOnCompletion:$false\"', parameters('domainName'), split(parameters('domainName'), '.')[0], parameters('adminPassword'))]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-vm-dc01', parameters('prefix')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "adVmId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-vm-dc01', parameters('prefix')))]"
+            },
+            "adVmPrivateIp": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-dc01', parameters('prefix'))), '2024-05-01').ipConfigurations[0].properties.privateIPAddress]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "spokeVnets",
+        "count": "[length(parameters('spokes'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "spokeName": {
+            "value": "[parameters('spokes')[copyIndex()].name]"
+          },
+          "vnetAddressPrefix": {
+            "value": "[parameters('spokes')[copyIndex()].vnetAddressPrefix]"
+          },
+          "sessionHostSubnetPrefix": {
+            "value": "[parameters('spokes')[copyIndex()].sessionHostSubnetPrefix]"
+          },
+          "hubVnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.hubVnetId.value]"
+          },
+          "firewallPrivateIp": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-firewall'), '2025-04-01').outputs.firewallPrivateIp.value]"
+          },
+          "dnsServers": {
+            "value": [
+              "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-dc'), '2025-04-01').outputs.adVmPrivateIp.value]"
+            ]
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "14644930976091688744"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "spokeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke の識別名 (例: spoke01, spoke02)"
+              }
+            },
+            "vnetAddressPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke VNet のアドレス空間"
+              }
+            },
+            "sessionHostSubnetPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Session Host サブネットのアドレスプレフィックス"
+              }
+            },
+            "dnsServers": {
+              "type": "array",
+              "defaultValue": [],
+              "metadata": {
+                "description": "カスタム DNS サーバー (AD DC の IP)"
+              }
+            },
+            "hubVnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Hub VNet ID (Peering用)"
+              }
+            },
+            "firewallPrivateIp": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure Firewall のプライベート IP (UDR 用)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/routeTables",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-rt-{1}', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "disableBgpRoutePropagation": true,
+                "routes": [
+                  {
+                    "name": "default-to-firewall",
+                    "properties": {
+                      "addressPrefix": "0.0.0.0/0",
+                      "nextHopType": "VirtualAppliance",
+                      "nextHopIpAddress": "[parameters('firewallPrivateIp')]"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-nsg-{1}', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*"
+                    }
+                  },
+                  {
+                    "name": "AllowVNetInbound",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "VirtualNetwork",
+                      "destinationPortRange": "*"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-vnet-{1}', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "[parameters('vnetAddressPrefix')]"
+                  ]
+                },
+                "dhcpOptions": {
+                  "dnsServers": "[parameters('dnsServers')]"
+                },
+                "subnets": [
+                  {
+                    "name": "snet-sessionhost",
+                    "properties": {
+                      "addressPrefix": "[parameters('sessionHostSubnetPrefix')]",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg-{1}', parameters('prefix'), parameters('spokeName')))]"
+                      },
+                      "routeTable": {
+                        "id": "[resourceId('Microsoft.Network/routeTables', format('{0}-rt-{1}', parameters('prefix'), parameters('spokeName')))]"
+                      }
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/routeTables', format('{0}-rt-{1}', parameters('prefix'), parameters('spokeName')))]",
+                "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-nsg-{1}', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/{1}', format('{0}-vnet-{1}', parameters('prefix'), parameters('spokeName')), 'spoke-to-hub')]",
+              "properties": {
+                "remoteVirtualNetwork": {
+                  "id": "[parameters('hubVnetId')]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": true,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-{1}', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "spokeVnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-{1}', parameters('prefix'), parameters('spokeName')))]"
+            },
+            "spokeVnetName": {
+              "type": "string",
+              "value": "[format('{0}-vnet-{1}', parameters('prefix'), parameters('spokeName'))]"
+            },
+            "sessionHostSubnetId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('{0}-vnet-{1}', parameters('prefix'), parameters('spokeName'))), '2024-05-01').subnets[0].id]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-dc')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-firewall')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "hubToSpokePeerings",
+        "count": "[length(parameters('spokes'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('deploy-hub-to-{0}-peering', parameters('spokes')[copyIndex()].name)]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "hubVnetName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.hubVnetName.value]"
+          },
+          "spokeVnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.spokeVnetId.value]"
+          },
+          "spokeName": {
+            "value": "[parameters('spokes')[copyIndex()].name]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "9623248655554730866"
+            }
+          },
+          "parameters": {
+            "hubVnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Hub VNet 名"
+              }
+            },
+            "spokeVnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke VNet ID"
+              }
+            },
+            "spokeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke の識別名"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}/hub-to-{1}', parameters('hubVnetName'), parameters('spokeName'))]",
+              "properties": {
+                "remoteVirtualNetwork": {
+                  "id": "[parameters('spokeVnetId')]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": true,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": false
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "avdHostPools",
+        "count": "[length(parameters('spokes'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "spokeName": {
+            "value": "[parameters('spokes')[copyIndex()].name]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "tokenExpirationTime": {
+            "value": "[parameters('tokenExpirationTime')]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "5129762858872751220"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "spokeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke の識別名"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace ID"
+              }
+            },
+            "hostPoolType": {
+              "type": "string",
+              "defaultValue": "Pooled",
+              "allowedValues": [
+                "Pooled",
+                "Personal"
+              ],
+              "metadata": {
+                "description": "ホストプールの種類 (Pooled / Personal)"
+              }
+            },
+            "loadBalancerType": {
+              "type": "string",
+              "defaultValue": "BreadthFirst",
+              "allowedValues": [
+                "BreadthFirst",
+                "DepthFirst"
+              ],
+              "metadata": {
+                "description": "負荷分散アルゴリズム"
+              }
+            },
+            "maxSessionLimit": {
+              "type": "int",
+              "defaultValue": 10,
+              "metadata": {
+                "description": "最大セッション数 (ホストあたり)"
+              }
+            },
+            "tokenExpirationTime": {
+              "type": "string",
+              "metadata": {
+                "description": "ホストプール登録トークンの有効期限 (ISO 8601)"
+              }
+            },
+            "customRdpProperty": {
+              "type": "string",
+              "defaultValue": "audiocapturemode:i:1;audiomode:i:0;drivestoredirect:s:;redirectclipboard:i:1;redirectcomports:i:0;redirectprinters:i:1;redirectsmartcards:i:0;screen mode id:i:2;use multimon:i:1;videoplaybackmode:i:1;enablerdsaadauth:i:0;",
+              "metadata": {
+                "description": "カスタム RDP プロパティ"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DesktopVirtualization/hostPools",
+              "apiVersion": "2024-04-08-preview",
+              "name": "[format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "hostPoolType": "[parameters('hostPoolType')]",
+                "loadBalancerType": "[parameters('loadBalancerType')]",
+                "maxSessionLimit": "[parameters('maxSessionLimit')]",
+                "preferredAppGroupType": "Desktop",
+                "startVMOnConnect": true,
+                "validationEnvironment": false,
+                "customRdpProperty": "[parameters('customRdpProperty')]",
+                "registrationInfo": {
+                  "expirationTime": "[parameters('tokenExpirationTime')]",
+                  "registrationTokenOperation": "Update"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DesktopVirtualization/applicationGroups",
+              "apiVersion": "2024-04-08-preview",
+              "name": "[format('{0}-{1}-dag', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "hostPoolArmPath": "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]",
+                "applicationGroupType": "Desktop",
+                "friendlyName": "[format('{0} {1} デスクトップ', parameters('prefix'), parameters('spokeName'))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DesktopVirtualization/workspaces",
+              "apiVersion": "2024-04-08-preview",
+              "name": "[format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "friendlyName": "[format('{0} {1} Workspace', parameters('prefix'), parameters('spokeName'))]",
+                "applicationGroupReferences": [
+                  "[resourceId('Microsoft.DesktopVirtualization/applicationGroups', format('{0}-{1}-dag', parameters('prefix'), parameters('spokeName')))]"
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DesktopVirtualization/applicationGroups', format('{0}-{1}-dag', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]",
+              "name": "[format('{0}-{1}-hp-diag', parameters('prefix'), parameters('spokeName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "categoryGroup": "allLogs",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.DesktopVirtualization/workspaces', format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName')))]",
+              "name": "[format('{0}-{1}-ws-diag', parameters('prefix'), parameters('spokeName'))]",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "categoryGroup": "allLogs",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DesktopVirtualization/workspaces', format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "hostPoolId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName')))]"
+            },
+            "hostPoolName": {
+              "type": "string",
+              "value": "[format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName'))]"
+            },
+            "hostPoolRegistrationToken": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.DesktopVirtualization/hostPools', format('{0}-{1}-hp', parameters('prefix'), parameters('spokeName'))), '2024-04-08-preview').registrationInfo.token]"
+            },
+            "appGroupId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.DesktopVirtualization/applicationGroups', format('{0}-{1}-dag', parameters('prefix'), parameters('spokeName')))]"
+            },
+            "workspaceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.DesktopVirtualization/workspaces', format('{0}-{1}-ws', parameters('prefix'), parameters('spokeName')))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-log-analytics')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "sessionHosts",
+        "count": "[length(parameters('spokes'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('deploy-{0}-session-hosts', parameters('spokes')[copyIndex()].name)]",
+      "resourceGroup": "[parameters('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "prefix": {
+            "value": "[parameters('prefix')]"
+          },
+          "spokeName": {
+            "value": "[parameters('spokes')[copyIndex()].name]"
+          },
+          "sessionHostCount": {
+            "value": "[parameters('spokes')[copyIndex()].sessionHostCount]"
+          },
+          "vmSize": {
+            "value": "[parameters('spokes')[copyIndex()].sessionHostVmSize]"
+          },
+          "subnetId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.sessionHostSubnetId.value]"
+          },
+          "adminUsername": {
+            "value": "[parameters('adminUsername')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('adminPassword')]"
+          },
+          "domainName": {
+            "value": "[parameters('domainName')]"
+          },
+          "domainJoinUsername": {
+            "value": "[parameters('domainJoinUsername')]"
+          },
+          "domainJoinPassword": {
+            "value": "[parameters('domainJoinPassword')]"
+          },
+          "hostPoolName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolName.value]"
+          },
+          "hostPoolRegistrationToken": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolRegistrationToken.value]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.42.1.51946",
+              "templateHash": "14807194669697222260"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "リソースのデプロイ先リージョン"
+              }
+            },
+            "prefix": {
+              "type": "string",
+              "metadata": {
+                "description": "リソース名のプレフィックス"
+              }
+            },
+            "spokeName": {
+              "type": "string",
+              "metadata": {
+                "description": "Spoke の識別名"
+              }
+            },
+            "sessionHostCount": {
+              "type": "int",
+              "defaultValue": 2,
+              "minValue": 1,
+              "maxValue": 50,
+              "metadata": {
+                "description": "デプロイする Session Host の台数"
+              }
+            },
+            "vmSize": {
+              "type": "string",
+              "defaultValue": "Standard_D4s_v5",
+              "metadata": {
+                "description": "Session Host の VM サイズ"
+              }
+            },
+            "subnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Session Host サブネット ID"
+              }
+            },
+            "adminUsername": {
+              "type": "string",
+              "metadata": {
+                "description": "管理者ユーザー名"
+              }
+            },
+            "adminPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "管理者パスワード"
+              }
+            },
+            "domainName": {
+              "type": "string",
+              "metadata": {
+                "description": "AD ドメイン名"
+              }
+            },
+            "ouPath": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "ドメイン参加用の OU パス (省略可)"
+              }
+            },
+            "domainJoinUsername": {
+              "type": "string",
+              "metadata": {
+                "description": "ドメイン参加用ユーザー名 (UPN 形式)"
+              }
+            },
+            "domainJoinPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "ドメイン参加用パスワード"
+              }
+            },
+            "hostPoolName": {
+              "type": "string",
+              "metadata": {
+                "description": "AVD Host Pool 名"
+              }
+            },
+            "hostPoolRegistrationToken": {
+              "type": "securestring",
+              "metadata": {
+                "description": "AVD Host Pool 登録トークン"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "タグ"
+              }
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "sessionHostNic",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "type": "Microsoft.Network/networkInterfaces",
+              "apiVersion": "2024-05-01",
+              "name": "[format('{0}-{1}-nic-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[copyIndex()]), 2, '0'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "ipConfigurations": [
+                  {
+                    "name": "ipconfig1",
+                    "properties": {
+                      "privateIPAllocationMethod": "Dynamic",
+                      "subnet": {
+                        "id": "[parameters('subnetId')]"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "copy": {
+                "name": "sessionHostVm",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "type": "Microsoft.Compute/virtualMachines",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[copyIndex()]), 2, '0'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "hardwareProfile": {
+                  "vmSize": "[parameters('vmSize')]"
+                },
+                "osProfile": {
+                  "computerName": "[format('{0}-sh{1}', parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[copyIndex()]), 2, '0'))]",
+                  "adminUsername": "[parameters('adminUsername')]",
+                  "adminPassword": "[parameters('adminPassword')]",
+                  "windowsConfiguration": {
+                    "provisionVMAgent": true,
+                    "enableAutomaticUpdates": true,
+                    "patchSettings": {
+                      "patchMode": "AutomaticByPlatform",
+                      "automaticByPlatformSettings": {
+                        "rebootSetting": "IfRequired"
+                      },
+                      "assessmentMode": "AutomaticByPlatform"
+                    },
+                    "timeZone": "Tokyo Standard Time"
+                  }
+                },
+                "storageProfile": {
+                  "imageReference": {
+                    "publisher": "MicrosoftWindowsDesktop",
+                    "offer": "office-365",
+                    "sku": "win11-24h2-avd-m365",
+                    "version": "latest"
+                  },
+                  "osDisk": {
+                    "name": "[format('{0}-{1}-osdisk-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[copyIndex()]), 2, '0'))]",
+                    "createOption": "FromImage",
+                    "managedDisk": {
+                      "storageAccountType": "Premium_LRS"
+                    },
+                    "diskSizeGB": 128
+                  }
+                },
+                "networkProfile": {
+                  "networkInterfaces": [
+                    {
+                      "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-{1}-nic-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+                    }
+                  ]
+                },
+                "licenseType": "Windows_Client",
+                "diagnosticsProfile": {
+                  "bootDiagnostics": {
+                    "enabled": true
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-{1}-nic-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "domainJoinExtension",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')), 'JoinDomain')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "JsonADDomainExtension",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                  "name": "[parameters('domainName')]",
+                  "ouPath": "[parameters('ouPath')]",
+                  "user": "[parameters('domainJoinUsername')]",
+                  "restart": "true",
+                  "options": "3"
+                },
+                "protectedSettings": {
+                  "password": "[parameters('domainJoinPassword')]"
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "avdAgentExtension",
+                "count": "[length(range(0, parameters('sessionHostCount')))]"
+              },
+              "type": "Microsoft.Compute/virtualMachines/extensions",
+              "apiVersion": "2024-07-01",
+              "name": "[format('{0}/{1}', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')), 'AVDAgent')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "publisher": "Microsoft.PowerShell",
+                "type": "DSC",
+                "typeHandlerVersion": "2.73",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                  "modulesUrl": "https://wvdportalstorageblob.blob.core.windows.net/galleryartifacts/Configuration_1.0.02714.342.zip",
+                  "configurationFunction": "Configuration.ps1\\AddSessionHost",
+                  "properties": {
+                    "hostPoolName": "[parameters('hostPoolName')]",
+                    "registrationInfoTokenCredential": {
+                      "UserName": "PLACEHOLDER",
+                      "Password": "PrivateSettingsRef:RegistrationInfoToken"
+                    },
+                    "aadJoin": false
+                  }
+                },
+                "protectedSettings": {
+                  "items": {
+                    "RegistrationInfoToken": "[parameters('hostPoolRegistrationToken')]"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/extensions', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]]), 2, '0')), 'JoinDomain')]",
+                "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "sessionHostVmIds": {
+              "type": "array",
+              "copy": {
+                "count": "[length(range(0, parameters('sessionHostCount')))]",
+                "input": "[resourceId('Microsoft.Compute/virtualMachines', format('{0}-{1}-sh{2}', parameters('prefix'), parameters('spokeName'), padLeft(string(range(0, parameters('sessionHostCount'))[range(0, parameters('sessionHostCount'))[copyIndex()]]), 2, '0')))]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-hub-to-{0}-peering', parameters('spokes')[copyIndex()].name))]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', parameters('resourceGroupName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[parameters('resourceGroupName')]"
+    },
+    "hubVnetId": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-hub-vnet'), '2025-04-01').outputs.hubVnetId.value]"
+    },
+    "firewallPrivateIp": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-firewall'), '2025-04-01').outputs.firewallPrivateIp.value]"
+    },
+    "adVmPrivateIp": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', 'deploy-dc'), '2025-04-01').outputs.adVmPrivateIp.value]"
+    },
+    "spokeVnetIds": {
+      "type": "array",
+      "copy": {
+        "count": "[length(parameters('spokes'))]",
+        "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-vnet', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.spokeVnetId.value]"
+      }
+    },
+    "hostPoolNames": {
+      "type": "array",
+      "copy": {
+        "count": "[length(parameters('spokes'))]",
+        "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('deploy-{0}-hostpool', parameters('spokes')[copyIndex()].name)), '2025-04-01').outputs.hostPoolName.value]"
+      }
+    }
+  }
+}
